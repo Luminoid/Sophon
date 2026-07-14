@@ -1,0 +1,16 @@
+//
+//  Localizable.strings
+//  SophonGemini
+//
+
+"gemini.error.apiKeyMissing" = "Gemini API key not set. Add it in Settings.";
+"gemini.error.contentBlocked" = "Gemini couldn't analyze this content.";
+"gemini.error.emptyInput" = "Please enter some text first.";
+"gemini.error.imageEncodingFailed" = "Failed to encode image.";
+"gemini.error.invalidAPIKey" = "Invalid Gemini API key. Check your key in Settings.";
+"gemini.error.invalidResponse" = "Could not parse the AI response. Please try again.";
+"gemini.error.modelRetired" = "The selected Gemini model is no longer available. Reset to default. Please try again.";
+"gemini.error.networkError" = "Network error";
+"gemini.error.rateLimited" = "Too many requests. Please wait and try again.";
+"gemini.error.responseTruncated" = "The response was too long to complete. Please try again.";
+"gemini.error.serverError" = "Gemini server error";

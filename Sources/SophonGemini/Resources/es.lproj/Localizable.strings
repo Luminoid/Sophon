@@ -1,0 +1,16 @@
+//
+//  Localizable.strings
+//  SophonGemini
+//
+
+"gemini.error.apiKeyMissing" = "Clave API de Gemini no configurada. Agréguela en Ajustes.";
+"gemini.error.contentBlocked" = "Gemini no pudo analizar este contenido.";
+"gemini.error.emptyInput" = "Ingrese texto primero.";
+"gemini.error.imageEncodingFailed" = "Error al codificar la imagen.";
+"gemini.error.invalidAPIKey" = "Clave API de Gemini inválida. Verifique su clave en Ajustes.";
+"gemini.error.invalidResponse" = "No se pudo analizar la respuesta de la IA. Inténtelo de nuevo.";
+"gemini.error.modelRetired" = "El modelo de Gemini seleccionado ya no está disponible. Restablecido al predeterminado. Inténtelo de nuevo.";
+"gemini.error.networkError" = "Error de red";
+"gemini.error.rateLimited" = "Demasiadas solicitudes. Espere e intente de nuevo.";
+"gemini.error.responseTruncated" = "La respuesta fue demasiado larga para completarse. Inténtelo de nuevo.";
+"gemini.error.serverError" = "Error del servidor Gemini";

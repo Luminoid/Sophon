@@ -1,0 +1,16 @@
+//
+//  Localizable.strings
+//  SophonGemini
+//
+
+"gemini.error.apiKeyMissing" = "未設定 Gemini API 金鑰，請在設定中新增。";
+"gemini.error.contentBlocked" = "Gemini 無法分析此內容。";
+"gemini.error.emptyInput" = "請先輸入文字。";
+"gemini.error.imageEncodingFailed" = "圖片編碼失敗。";
+"gemini.error.invalidAPIKey" = "Gemini API 金鑰無效，請在設定中檢查。";
+"gemini.error.invalidResponse" = "無法解析 AI 回應，請重試。";
+"gemini.error.modelRetired" = "所選 Gemini 模型已不可用，已重設為預設模型，請重試。";
+"gemini.error.networkError" = "網路錯誤";
+"gemini.error.rateLimited" = "請求過於頻繁，請稍後再試。";
+"gemini.error.responseTruncated" = "回覆內容過長未能完成，請重試。";
+"gemini.error.serverError" = "Gemini 伺服器錯誤";
