@@ -71,6 +71,18 @@ struct GeminiModelTests {
     }
 
     @Test
+    func `Successor chains terminate for every standard case`() {
+        for model in GeminiModel.allStandardCases {
+            var seen: Set<String> = []
+            var current: GeminiModel? = model
+            while let candidate = current {
+                #expect(seen.insert(candidate.modelID).inserted, "successor cycle through \(candidate.modelID)")
+                current = candidate.successor
+            }
+        }
+    }
+
+    @Test
     func `Deprecated presets map to documented successors`() {
         #expect(GeminiModel.gemini25FlashLite.successor == .gemini31FlashLite)
         #expect(GeminiModel.gemini25Flash.successor == .gemini35Flash)

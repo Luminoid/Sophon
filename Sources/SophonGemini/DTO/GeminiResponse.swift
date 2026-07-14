@@ -25,6 +25,9 @@ public struct GeminiResponse: Decodable, Sendable {
 
     public struct GeminiResponsePart: Decodable, Sendable {
         public let text: String?
+        /// True on "thought summary" parts thinking models can emit; excluded
+        /// from `extractedText`.
+        public let thought: Bool?
     }
 
     /// Present when Gemini blocks the prompt itself (before generating any candidate).
@@ -37,9 +40,13 @@ public struct GeminiResponse: Decodable, Sendable {
         public let code: Int?
     }
 
-    /// Extract the text content from the first candidate's first part.
+    /// Extract the text content from the first candidate, joining all of its
+    /// non-thought parts: long responses can legitimately arrive split across
+    /// several parts, and reading only the first would silently drop the rest.
     public var extractedText: String? {
-        candidates?.first?.content?.parts?.first?.text
+        guard let parts = candidates?.first?.content?.parts else { return nil }
+        let text = parts.filter { $0.thought != true }.compactMap(\.text).joined()
+        return text.isEmpty ? nil : text
     }
 
     /// A safety/recitation block reason if the prompt or first candidate was refused, else nil.

@@ -22,12 +22,26 @@ final class GeminiMockURLProtocol: URLProtocol {
         let headers: [String: String]
     }
 
-    nonisolated(unsafe) static var stubs: [Stub] = []
-    nonisolated(unsafe) static var requestCount = 0
+    // URLSession calls startLoading on its own worker queue while tests read on
+    // the MainActor; the lock keeps the shared stub state coherent either way.
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var protectedStubs: [Stub] = []
+    private nonisolated(unsafe) static var protectedRequestCount = 0
+
+    static var stubs: [Stub] {
+        get { lock.withLock { protectedStubs } }
+        set { lock.withLock { protectedStubs = newValue } }
+    }
+
+    static var requestCount: Int {
+        lock.withLock { protectedRequestCount }
+    }
 
     static func reset() {
-        stubs = []
-        requestCount = 0
+        lock.withLock {
+            protectedStubs = []
+            protectedRequestCount = 0
+        }
     }
 
     // URLProtocol requirements are `class func`s, so `static` cannot override them.
@@ -43,13 +57,16 @@ final class GeminiMockURLProtocol: URLProtocol {
     // swiftlint:enable static_over_final_class
 
     override func startLoading() {
-        guard !Self.stubs.isEmpty else {
+        let nextStub: Stub? = Self.lock.withLock {
+            guard !Self.protectedStubs.isEmpty else { return nil }
+            let index = min(Self.protectedRequestCount, Self.protectedStubs.count - 1)
+            Self.protectedRequestCount += 1
+            return Self.protectedStubs[index]
+        }
+        guard let stub = nextStub else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
             return
         }
-        let index = min(Self.requestCount, Self.stubs.count - 1)
-        Self.requestCount += 1
-        let stub = Self.stubs[index]
         guard let url = request.url ?? URL(string: "https://example.com"),
               let response = HTTPURLResponse(url: url, statusCode: stub.statusCode, httpVersion: nil, headerFields: stub.headers) else {
             client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))

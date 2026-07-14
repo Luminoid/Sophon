@@ -28,6 +28,22 @@ struct GeminiResponseTests {
     }
 
     @Test
+    func `extractedText joins multiple parts`() throws {
+        let json = Data(#"{"candidates": [{"content": {"parts": [{"text": "{\"a\":"}, {"text": " 1}"}]}}]}"#.utf8)
+        let response = try JSONDecoder().decode(GeminiResponse.self, from: json)
+
+        #expect(response.extractedText == #"{"a": 1}"#)
+    }
+
+    @Test
+    func `extractedText skips thought parts`() throws {
+        let json = Data(#"{"candidates": [{"content": {"parts": [{"text": "reasoning...", "thought": true}, {"text": "answer"}]}}]}"#.utf8)
+        let response = try JSONDecoder().decode(GeminiResponse.self, from: json)
+
+        #expect(response.extractedText == "answer")
+    }
+
+    @Test
     func `returns nil for empty candidates`() throws {
         let response = try JSONDecoder().decode(GeminiResponse.self, from: Data(#"{"candidates": []}"#.utf8))
         #expect(response.extractedText == nil)

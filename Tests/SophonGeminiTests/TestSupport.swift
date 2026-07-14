@@ -25,7 +25,8 @@ enum TestSupport {
         defaultModel: GeminiModel = .gemini31FlashLite,
         fallbackModel: GeminiModel = .gemini31FlashLite,
         availableModels: [GeminiModel] = GeminiModel.allStandardCases,
-        retryPolicy: GeminiRetryPolicy = .default
+        retryPolicy: GeminiRetryPolicy = .default,
+        maxImages: Int = 6
     ) -> GeminiClientConfiguration {
         GeminiClientConfiguration(
             keychainAccount: "com.sophon.tests.geminiAPIKey",
@@ -34,6 +35,7 @@ enum TestSupport {
             fallbackModel: fallbackModel,
             availableModels: availableModels,
             retryPolicy: retryPolicy,
+            maxImages: maxImages,
             logHandler: { _, _ in }
         )
     }

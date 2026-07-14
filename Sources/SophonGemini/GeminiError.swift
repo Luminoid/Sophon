@@ -12,6 +12,8 @@ import Foundation
 public enum GeminiError: LocalizedError {
     case apiKeyMissing
     case invalidAPIKey
+    /// The model identifier could not form a valid request URL (carries the offending ID).
+    case invalidModelID(String)
     /// The caller had nothing to send (empty text input). Thrown by app services, not the client.
     case emptyInput
     case imageEncodingFailed
@@ -31,6 +33,8 @@ public enum GeminiError: LocalizedError {
             String(localized: "gemini.error.apiKeyMissing", bundle: .module)
         case .invalidAPIKey:
             String(localized: "gemini.error.invalidAPIKey", bundle: .module)
+        case let .invalidModelID(id):
+            String(localized: "gemini.error.invalidModelID", bundle: .module) + " (\(id))"
         case .emptyInput:
             String(localized: "gemini.error.emptyInput", bundle: .module)
         case .imageEncodingFailed:

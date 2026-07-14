@@ -50,11 +50,15 @@ public struct GeminiModelStore: Sendable {
     private func resolveToCatalog(_ model: GeminiModel) -> GeminiModel {
         if case .custom = model { return model }
         var candidate = model
+        // Hop cap: a catalog edit that accidentally forms a successor cycle must
+        // resolve to the fallback, not hang every `current` read.
+        var hops = 0
         while !configuration.availableModels.contains(candidate) {
-            guard let next = candidate.successor else {
+            guard hops < GeminiModel.allStandardCases.count, let next = candidate.successor else {
                 return configuration.fallbackModel
             }
             candidate = next
+            hops += 1
         }
         return candidate
     }

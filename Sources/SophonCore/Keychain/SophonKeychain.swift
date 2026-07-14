@@ -5,6 +5,10 @@
 //  Minimal Keychain wrapper for securely storing API keys. The account string
 //  is caller-supplied so each app keeps its existing Keychain item.
 //
+//  Items are keyed by account only (no kSecAttrService): the consuming apps'
+//  pre-package items were stored that way, and adding a service attribute would
+//  orphan them. Keep account strings reverse-DNS unique per app.
+//
 
 import Foundation
 import Security
@@ -13,7 +17,7 @@ public enum SophonKeychain {
     // MARK: - Public API
 
     public static func save(account: String, value: String) throws {
-        guard let data = value.data(using: .utf8) else { return }
+        let data = Data(value.utf8)
 
         // Delete existing item first
         let deleteQuery: [String: Any] = [

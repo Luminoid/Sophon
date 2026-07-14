@@ -34,7 +34,8 @@ public struct GeminiClientConfiguration: @unchecked Sendable {
     /// Overall ceiling for a single request including the upload (seconds).
     public var resourceTimeout: TimeInterval
     public var retryPolicy: GeminiRetryPolicy
-    /// Cap on images per request (callers enforce; Gemini's inline budget is ~20 MB).
+    /// Cap on images per request; `encodeImages` drops extras with a warning log
+    /// (Gemini's inline budget is ~20 MB).
     public var maxImages: Int
     public var logHandler: SophonLogHandler
 

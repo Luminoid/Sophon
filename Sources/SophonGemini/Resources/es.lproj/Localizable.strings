@@ -8,6 +8,7 @@
 "gemini.error.emptyInput" = "Ingrese texto primero.";
 "gemini.error.imageEncodingFailed" = "Error al codificar la imagen.";
 "gemini.error.invalidAPIKey" = "Clave API de Gemini inválida. Verifique su clave en Ajustes.";
+"gemini.error.invalidModelID" = "El ID del modelo de Gemini seleccionado no es válido. Verifique la selección de modelo en Ajustes.";
 "gemini.error.invalidResponse" = "No se pudo analizar la respuesta de la IA. Inténtelo de nuevo.";
 "gemini.error.modelRetired" = "El modelo de Gemini seleccionado ya no está disponible. Restablecido al predeterminado. Inténtelo de nuevo.";
 "gemini.error.networkError" = "Error de red";

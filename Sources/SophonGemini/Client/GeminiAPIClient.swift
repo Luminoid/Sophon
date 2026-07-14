@@ -42,7 +42,8 @@ public final class GeminiAPIClient {
 
     /// Build a single-turn `generateContent` request. Media parts (images, PDFs)
     /// go before the instruction text so the model reads the prompt in the
-    /// context of the already-ingested documents.
+    /// context of the already-ingested documents. Body encoding runs on the
+    /// caller's executor; the `generate*` conveniences encode off-main instead.
     public func buildRequest(
         parts: [GeminiPart] = [],
         promptText: String,
@@ -53,13 +54,12 @@ public final class GeminiAPIClient {
         responseMimeType: String = "application/json"
     ) throws -> URLRequest {
         var request = try makeBaseRequest(apiKey: apiKey, modelID: modelID)
-        let body = GeminiRequest(
-            contents: [GeminiContent(parts: parts + [.text(promptText)])],
-            generationConfig: GeminiGenerationConfig(
-                responseMimeType: responseMimeType,
-                temperature: temperature,
-                responseSchema: responseSchema
-            )
+        let body = Self.singleTurnBody(
+            parts: parts,
+            promptText: promptText,
+            responseSchema: responseSchema,
+            temperature: temperature,
+            responseMimeType: responseMimeType
         )
         request.httpBody = try JSONEncoder().encode(body)
         return request
@@ -75,7 +75,40 @@ public final class GeminiAPIClient {
         temperature: Double = 0.3
     ) throws -> URLRequest {
         var request = try makeBaseRequest(apiKey: apiKey, modelID: modelID)
-        let body = GeminiRequest(
+        let body = Self.multiTurnBody(
+            contents: contents,
+            responseSchema: responseSchema,
+            responseMimeType: responseMimeType,
+            temperature: temperature
+        )
+        request.httpBody = try JSONEncoder().encode(body)
+        return request
+    }
+
+    private nonisolated static func singleTurnBody(
+        parts: [GeminiPart],
+        promptText: String,
+        responseSchema: GeminiSchema?,
+        temperature: Double,
+        responseMimeType: String
+    ) -> GeminiRequest {
+        GeminiRequest(
+            contents: [GeminiContent(parts: parts + [.text(promptText)])],
+            generationConfig: GeminiGenerationConfig(
+                responseMimeType: responseMimeType,
+                temperature: temperature,
+                responseSchema: responseSchema
+            )
+        )
+    }
+
+    private nonisolated static func multiTurnBody(
+        contents: [GeminiContent],
+        responseSchema: GeminiSchema?,
+        responseMimeType: String,
+        temperature: Double
+    ) -> GeminiRequest {
+        GeminiRequest(
             contents: contents,
             generationConfig: GeminiGenerationConfig(
                 responseMimeType: responseMimeType,
@@ -83,8 +116,13 @@ public final class GeminiAPIClient {
                 responseSchema: responseSchema
             )
         )
-        request.httpBody = try JSONEncoder().encode(body)
-        return request
+    }
+
+    /// JSON-encode a request body off the calling executor. Multi-image bodies
+    /// run to tens of megabytes of base64 text, and escaping them is measurable
+    /// main-thread work.
+    nonisolated static func encodeBody(_ body: GeminiRequest) async throws -> Data {
+        try await Task.detached { try JSONEncoder().encode(body) }.value
     }
 
     private func makeBaseRequest(apiKey: String, modelID: String?) throws -> URLRequest {
@@ -94,7 +132,7 @@ public final class GeminiAPIClient {
         let resolvedModelID = modelID ?? modelStore.current.modelID
         let urlString = "\(configuration.apiBaseURL)\(resolvedModelID):generateContent"
         guard let url = URL(string: urlString) else {
-            throw GeminiError.invalidAPIKey
+            throw GeminiError.invalidModelID(resolvedModelID)
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -125,6 +163,7 @@ public final class GeminiAPIClient {
     /// Send a structured (JSON) request with automatic transient-error retry and model fallback.
     /// `buildRequest` is invoked once per attempt with the variant (image size + model ID) the
     /// retry loop wants for that attempt, so a retry can re-encode smaller images or swap models.
+    /// Errors the closure throws that are not `GeminiError` propagate as-is, without retry.
     public func send<T: Decodable>(
         _ type: T.Type,
         label: String,
@@ -150,8 +189,8 @@ public final class GeminiAPIClient {
     // MARK: - Conveniences
 
     /// One-call structured generation: prompt (+ optional media parts) in,
-    /// decoded result out. Loads the API key itself; downscale-on-retry does not
-    /// apply since the parts are pre-encoded.
+    /// decoded result out. Loads the API key itself and encodes the request body
+    /// off-main; downscale-on-retry does not apply since the parts are pre-encoded.
     public func generateStructured<T: Decodable>(
         _ type: T.Type,
         label: String,
@@ -163,19 +202,22 @@ public final class GeminiAPIClient {
     ) async throws -> T {
         guard let apiKey = loadAPIKey() else { throw GeminiError.apiKeyMissing }
         return try await send(type, label: label, retryPolicy: retryPolicy) { [self] variant in
-            try buildRequest(
+            var request = try makeBaseRequest(apiKey: apiKey, modelID: variant.modelID)
+            let body = Self.singleTurnBody(
                 parts: parts,
                 promptText: prompt,
-                apiKey: apiKey,
-                modelID: variant.modelID,
                 responseSchema: schema,
-                temperature: temperature
+                temperature: temperature,
+                responseMimeType: "application/json"
             )
+            request.httpBody = try await Self.encodeBody(body)
+            return request
         }
     }
 
     /// One-call plain-text generation over explicit role-tagged contents
-    /// (multi-turn conversations, free-form reports).
+    /// (multi-turn conversations, free-form reports). Encodes the request body
+    /// off-main.
     public func generateText(
         label: String,
         contents: [GeminiContent],
@@ -184,12 +226,15 @@ public final class GeminiAPIClient {
     ) async throws -> String {
         guard let apiKey = loadAPIKey() else { throw GeminiError.apiKeyMissing }
         return try await sendPlainText(label: label, retryPolicy: retryPolicy) { [self] variant in
-            try buildMultiTurnRequest(
+            var request = try makeBaseRequest(apiKey: apiKey, modelID: variant.modelID)
+            let body = Self.multiTurnBody(
                 contents: contents,
-                apiKey: apiKey,
-                modelID: variant.modelID,
+                responseSchema: nil,
+                responseMimeType: "text/plain",
                 temperature: temperature
             )
+            request.httpBody = try await Self.encodeBody(body)
+            return request
         }
     }
 

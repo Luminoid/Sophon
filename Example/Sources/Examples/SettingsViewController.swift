@@ -18,6 +18,7 @@ final class SettingsViewController: ExamplePageViewController {
     private lazy var statusLabel: UILabel = {
         let label = UILabel()
         label.font = .preferredFont(forTextStyle: .body)
+        label.adjustsFontForContentSizeCategory = true
         label.numberOfLines = 0
         return label
     }()
@@ -153,6 +154,7 @@ final class SettingsViewController: ExamplePageViewController {
         let label = UILabel()
         label.text = "Gemini enabled"
         label.font = .preferredFont(forTextStyle: .body)
+        label.adjustsFontForContentSizeCategory = true
         return label
     }
 }

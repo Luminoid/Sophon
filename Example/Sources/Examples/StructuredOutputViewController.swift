@@ -69,6 +69,8 @@ final class StructuredOutputViewController: ExamplePageViewController {
         analyzeButton.configuration?.showsActivityIndicator = true
         resultTextView.text = ""
         let prompt = "Analyze the following text.\n\n" + inputTextView.text
+        // A cancelled task must not touch UI afterwards: a newer analyze owns
+        // the result view and spinner by then.
         generateTask = Task { [weak self] in
             do {
                 let analysis = try await GeminiAPIClient.shared.generateStructured(
@@ -77,15 +79,18 @@ final class StructuredOutputViewController: ExamplePageViewController {
                     prompt: prompt,
                     schema: Self.schema
                 )
-                self?.resultTextView.text = """
+                guard let self, !Task.isCancelled else { return }
+                resultTextView.text = """
                 sentiment: \(analysis.sentiment)
                 keywords: \(analysis.keywords.joined(separator: ", "))
                 summary: \(analysis.summary)
                 """
+                analyzeButton.configuration?.showsActivityIndicator = false
             } catch {
-                self?.resultTextView.text = "Error: \(error.localizedDescription)"
+                guard let self, !Task.isCancelled else { return }
+                resultTextView.text = "Error: \(error.localizedDescription)"
+                analyzeButton.configuration?.showsActivityIndicator = false
             }
-            self?.analyzeButton.configuration?.showsActivityIndicator = false
         }
     }
 }

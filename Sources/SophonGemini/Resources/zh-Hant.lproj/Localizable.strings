@@ -8,6 +8,7 @@
 "gemini.error.emptyInput" = "請先輸入文字。";
 "gemini.error.imageEncodingFailed" = "圖片編碼失敗。";
 "gemini.error.invalidAPIKey" = "Gemini API 金鑰無效，請在設定中檢查。";
+"gemini.error.invalidModelID" = "所選 Gemini 模型 ID 無效，請在設定中檢查模型選擇。";
 "gemini.error.invalidResponse" = "無法解析 AI 回應，請重試。";
 "gemini.error.modelRetired" = "所選 Gemini 模型已不可用，已重設為預設模型，請重試。";
 "gemini.error.networkError" = "網路錯誤";

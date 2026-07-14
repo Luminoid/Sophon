@@ -25,10 +25,17 @@
             maxDimension: CGFloat = GeminiAPIClient.maxImageDimension,
             quality: CGFloat = GeminiAPIClient.imageCompressionQuality
         ) async throws -> [GeminiPart] {
-            try await withThrowingTaskGroup(of: (Int, GeminiPart).self) { group in
+            var images = images
+            if images.count > configuration.maxImages {
+                log(.warning, "encodeImages: dropping \(images.count - configuration.maxImages) image(s) over the configured maxImages of \(configuration.maxImages)")
+                images = Array(images.prefix(configuration.maxImages))
+            }
+            // Resize inside the child tasks: a UIGraphicsImageRenderer redraw of a
+            // large photo is tens of milliseconds and must not run on the MainActor.
+            return try await withThrowingTaskGroup(of: (Int, GeminiPart).self) { group in
                 for (index, image) in images.enumerated() {
-                    let resized = Self.resizeIfNeeded(image, maxDimension: maxDimension)
                     group.addTask {
+                        let resized = Self.resizeIfNeeded(image, maxDimension: maxDimension)
                         guard let data = resized.jpegData(compressionQuality: quality) else {
                             throw GeminiError.imageEncodingFailed
                         }
@@ -56,14 +63,20 @@
             return try await encodeImages(images)
         }
 
-        private static func resizeIfNeeded(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
+        /// nonisolated so the task-group children can run it off the MainActor.
+        private nonisolated static func resizeIfNeeded(_ image: UIImage, maxDimension: CGFloat) -> UIImage {
             let size = image.size
             let maxSize = max(size.width, size.height)
             guard maxSize > maxDimension else { return image }
 
             let scale = maxDimension / maxSize
             let newSize = CGSize(width: size.width * scale, height: size.height * scale)
-            let renderer = UIGraphicsImageRenderer(size: newSize)
+            // Pin the renderer to scale 1 so the cap means pixels: the default
+            // format uses the device's screen scale, which would render a
+            // "2048" cap as 6144 actual pixels on a 3x display.
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let renderer = UIGraphicsImageRenderer(size: newSize, format: format)
             return renderer.image { _ in
                 image.draw(in: CGRect(origin: .zero, size: newSize))
             }

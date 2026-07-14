@@ -60,6 +60,8 @@ public enum LLMDecoding {
     }
 
     /// Decodes a float from a JSON number or parseable string, normalizing 0-100 percentages to 0-1.
+    /// Any value above 1 is assumed to be a percentage, so an overshoot like 1.5 becomes 0.015 rather
+    /// than clamping to 1; pin the range in the prompt/schema when that distinction matters.
     public static func confidence<K: CodingKey>(from container: KeyedDecodingContainer<K>, key: K) -> Float? {
         var value: Float?
         if let v = try? container.decode(Float.self, forKey: key) {

@@ -46,10 +46,10 @@ struct GeminiErrorTests {
     func `errorDescription resolves from the package string catalog`() throws {
         // A raw-key description means a missing bundle: .module or catalog entry.
         let cases: [GeminiError] = [
-            .apiKeyMissing, .invalidAPIKey, .emptyInput, .imageEncodingFailed,
-            .requestFailed(URLError(.timedOut)), .invalidResponse, .rateLimited,
-            .serverError(500), .modelRetired("gemini-x"), .contentBlocked("SAFETY"),
-            .responseTruncated,
+            .apiKeyMissing, .invalidAPIKey, .invalidModelID("bad model"), .emptyInput,
+            .imageEncodingFailed, .requestFailed(URLError(.timedOut)), .invalidResponse,
+            .rateLimited, .serverError(500), .modelRetired("gemini-x"),
+            .contentBlocked("SAFETY"), .responseTruncated,
         ]
         for error in cases {
             let description = try #require(error.errorDescription)
@@ -65,5 +65,8 @@ struct GeminiErrorTests {
 
         let retired = try #require(GeminiError.modelRetired("gemini-9-ultra").errorDescription)
         #expect(retired.contains("gemini-9-ultra"))
+
+        let invalidID = try #require(GeminiError.invalidModelID("bad model").errorDescription)
+        #expect(invalidID.contains("bad model"))
     }
 }

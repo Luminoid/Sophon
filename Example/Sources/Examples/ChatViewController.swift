@@ -56,27 +56,35 @@ final class ChatViewController: ExamplePageViewController {
     // MARK: - Actions
 
     private func send() {
-        guard let message = messageField.text, !message.isEmpty else { return }
+        let message = (messageField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else { return }
         sendTask?.cancel()
         sendButton.configuration?.showsActivityIndicator = true
         messageField.text = nil
         contents.append(GeminiContent(parts: [.text(message)], role: "user"))
         appendTranscript("You: \(message)")
+        // Capture the history by value, and hold self weakly across the await so
+        // a popped screen deallocates (deinit cancels) instead of riding out the
+        // request. A cancelled task must not touch state afterwards: Reset or a
+        // newer send owns the transcript and spinner by then.
+        let history = contents
         sendTask = Task { [weak self] in
-            guard let self else { return }
             do {
                 let reply = try await GeminiAPIClient.shared.generateText(
                     label: "exampleChat",
-                    contents: contents
+                    contents: history
                 )
+                guard let self, !Task.isCancelled else { return }
                 contents.append(GeminiContent(parts: [.text(reply)], role: "model"))
                 appendTranscript("Gemini: \(reply)")
+                sendButton.configuration?.showsActivityIndicator = false
             } catch {
+                guard let self, !Task.isCancelled else { return }
                 // Drop the failed turn so a retry does not double-send it.
-                contents.removeLast()
+                if !contents.isEmpty { contents.removeLast() }
                 appendTranscript("Error: \(error.localizedDescription)")
+                sendButton.configuration?.showsActivityIndicator = false
             }
-            sendButton.configuration?.showsActivityIndicator = false
         }
     }
 

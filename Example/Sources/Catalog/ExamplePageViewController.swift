@@ -60,6 +60,7 @@ class ExamplePageViewController: UIViewController {
         let label = UILabel()
         label.text = text.uppercased()
         label.font = .preferredFont(forTextStyle: .footnote)
+        label.adjustsFontForContentSizeCategory = true
         label.textColor = .secondaryLabel
         if !stackView.arrangedSubviews.isEmpty {
             stackView.setCustomSpacing(24, after: stackView.arrangedSubviews[stackView.arrangedSubviews.count - 1])
@@ -71,6 +72,7 @@ class ExamplePageViewController: UIViewController {
         let label = UILabel()
         label.text = text
         label.font = .preferredFont(forTextStyle: .footnote)
+        label.adjustsFontForContentSizeCategory = true
         label.textColor = .secondaryLabel
         label.numberOfLines = 0
         stackView.addArrangedSubview(label)
@@ -96,6 +98,7 @@ class ExamplePageViewController: UIViewController {
         let textView = UITextView()
         textView.text = text
         textView.font = .preferredFont(forTextStyle: .body)
+        textView.adjustsFontForContentSizeCategory = true
         textView.layer.borderColor = UIColor.separator.cgColor
         textView.layer.borderWidth = 1
         textView.layer.cornerRadius = 8
