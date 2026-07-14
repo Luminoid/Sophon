@@ -1,0 +1,437 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		0A49B9C8C0677BC805603FC6 /* ExampleViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF125E8E3EE16723772418B9 /* ExampleViewController.swift */; };
+		12557EB15D7F468F0A70624E /* SophonCore in Frameworks */ = {isa = PBXBuildFile; productRef = BC381A338AE36F3A0C9DD5EE /* SophonCore */; };
+		2D844F4570AB6E0D12D24530 /* StructuredOutputViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21CCD179BF7429CED70AF17B /* StructuredOutputViewController.swift */; };
+		3275F86B29695AAE612842EA /* SophonGemini in Frameworks */ = {isa = PBXBuildFile; productRef = 61E409544C51860973237D3E /* SophonGemini */; };
+		35E45EE5F1123DA13CD8E9AA /* ExampleClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EEAF3BCF24F8B167FE7A5A8 /* ExampleClient.swift */; };
+		589409002E6607A8FE411EB2 /* ChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0FDDF967198596EC80B5B7B /* ChatViewController.swift */; };
+		91C62318188EF45209B0D3B6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CD822178A4E26B83754A9FB7 /* Assets.xcassets */; };
+		9754C70C18E542DC3B4CF6B3 /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11DBD609ED1BFB9B8C03EFB3 /* SettingsViewController.swift */; };
+		E19F27F8B8BBB76F8F472834 /* ExamplePageViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC00024748E41A2C16071E3 /* ExamplePageViewController.swift */; };
+		E39EE228CA37DE4A2FA0139A /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = B85E945F18AE969CEBBDD5B0 /* AppDelegate.swift */; };
+		F60C1967FBDBDDC2DC1E741A /* JSONExtractorViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 375238F324744E0919E4F53F /* JSONExtractorViewController.swift */; };
+		FC89F625278525B535C7EDCA /* SceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9959ACC6EF0681D6DDDFBEC /* SceneDelegate.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		11DBD609ED1BFB9B8C03EFB3 /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
+		21CCD179BF7429CED70AF17B /* StructuredOutputViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StructuredOutputViewController.swift; sourceTree = "<group>"; };
+		2EC00024748E41A2C16071E3 /* ExamplePageViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExamplePageViewController.swift; sourceTree = "<group>"; };
+		375238F324744E0919E4F53F /* JSONExtractorViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONExtractorViewController.swift; sourceTree = "<group>"; };
+		3EEAF3BCF24F8B167FE7A5A8 /* ExampleClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExampleClient.swift; sourceTree = "<group>"; };
+		7CB907E84264F535C6D43C18 /* SophonExample.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SophonExample.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		AF125E8E3EE16723772418B9 /* ExampleViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExampleViewController.swift; sourceTree = "<group>"; };
+		B6F0C858F4837E212A8E2D85 /* Sophon */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Sophon; path = ..; sourceTree = SOURCE_ROOT; };
+		B85E945F18AE969CEBBDD5B0 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		C9959ACC6EF0681D6DDDFBEC /* SceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SceneDelegate.swift; sourceTree = "<group>"; };
+		CD822178A4E26B83754A9FB7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E0FDDF967198596EC80B5B7B /* ChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewController.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		43B9A48EB82BB38F81EC66C5 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12557EB15D7F468F0A70624E /* SophonCore in Frameworks */,
+				3275F86B29695AAE612842EA /* SophonGemini in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		0EFDA2A734C84A17C97F97DB = {
+			isa = PBXGroup;
+			children = (
+				D6D0410069D27FBF60A4F113 /* Packages */,
+				9368E76BAE23560707A26A9B /* Resources */,
+				7CB33062BA7C97984241A4B1 /* Sources */,
+				8252B20CD45BD38670493939 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		265332B75B6731F17379CDD1 /* Catalog */ = {
+			isa = PBXGroup;
+			children = (
+				2EC00024748E41A2C16071E3 /* ExamplePageViewController.swift */,
+				AF125E8E3EE16723772418B9 /* ExampleViewController.swift */,
+			);
+			path = Catalog;
+			sourceTree = "<group>";
+		};
+		7CB33062BA7C97984241A4B1 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C23263A9A0DFE1B5AD252FB4 /* App */,
+				265332B75B6731F17379CDD1 /* Catalog */,
+				BF85726372E5BBE786C9BE0F /* Examples */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		8252B20CD45BD38670493939 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				7CB907E84264F535C6D43C18 /* SophonExample.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		9368E76BAE23560707A26A9B /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				CD822178A4E26B83754A9FB7 /* Assets.xcassets */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		BF85726372E5BBE786C9BE0F /* Examples */ = {
+			isa = PBXGroup;
+			children = (
+				E0FDDF967198596EC80B5B7B /* ChatViewController.swift */,
+				375238F324744E0919E4F53F /* JSONExtractorViewController.swift */,
+				11DBD609ED1BFB9B8C03EFB3 /* SettingsViewController.swift */,
+				21CCD179BF7429CED70AF17B /* StructuredOutputViewController.swift */,
+			);
+			path = Examples;
+			sourceTree = "<group>";
+		};
+		C23263A9A0DFE1B5AD252FB4 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B85E945F18AE969CEBBDD5B0 /* AppDelegate.swift */,
+				3EEAF3BCF24F8B167FE7A5A8 /* ExampleClient.swift */,
+				C9959ACC6EF0681D6DDDFBEC /* SceneDelegate.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		D6D0410069D27FBF60A4F113 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				B6F0C858F4837E212A8E2D85 /* Sophon */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		30B08ABAF8819D0EDCA1E20D /* SophonExample */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 0D039CFA0EB5BED72B0D72C0 /* Build configuration list for PBXNativeTarget "SophonExample" */;
+			buildPhases = (
+				8CCBE0C3C246194D96075A41 /* Sources */,
+				3907240BEA2039ED1D9FE802 /* Resources */,
+				43B9A48EB82BB38F81EC66C5 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SophonExample;
+			packageProductDependencies = (
+				BC381A338AE36F3A0C9DD5EE /* SophonCore */,
+				61E409544C51860973237D3E /* SophonGemini */,
+			);
+			productName = SophonExample;
+			productReference = 7CB907E84264F535C6D43C18 /* SophonExample.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		9D2CD7AC0C506E7F97A61B34 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 2600;
+				TargetAttributes = {
+					30B08ABAF8819D0EDCA1E20D = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 68AAB043AD5E21F893D2C60B /* Build configuration list for PBXProject "SophonExample" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 0EFDA2A734C84A17C97F97DB;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				6968B80DA19529D756B4B0C5 /* XCLocalSwiftPackageReference ".." */,
+			);
+			preferredProjectObjectVersion = 77;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				30B08ABAF8819D0EDCA1E20D /* SophonExample */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		3907240BEA2039ED1D9FE802 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				91C62318188EF45209B0D3B6 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		8CCBE0C3C246194D96075A41 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				E39EE228CA37DE4A2FA0139A /* AppDelegate.swift in Sources */,
+				589409002E6607A8FE411EB2 /* ChatViewController.swift in Sources */,
+				35E45EE5F1123DA13CD8E9AA /* ExampleClient.swift in Sources */,
+				E19F27F8B8BBB76F8F472834 /* ExamplePageViewController.swift in Sources */,
+				0A49B9C8C0677BC805603FC6 /* ExampleViewController.swift in Sources */,
+				F60C1967FBDBDDC2DC1E741A /* JSONExtractorViewController.swift in Sources */,
+				FC89F625278525B535C7EDCA /* SceneDelegate.swift in Sources */,
+				9754C70C18E542DC3B4CF6B3 /* SettingsViewController.swift in Sources */,
+				2D844F4570AB6E0D12D24530 /* StructuredOutputViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1F5CE81147967EC84AFAF876 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		26C5F4B0766522AA617F8C6F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.luminoid.sophon.example;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		2C09BF140FEC3BCB3493BEF4 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.luminoid.sophon.example;
+				SDKROOT = auto;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = YES;
+				SWIFT_VERSION = 6.2;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		6E0B5C83B9E3413A1A0B556E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = auto;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0D039CFA0EB5BED72B0D72C0 /* Build configuration list for PBXNativeTarget "SophonExample" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				26C5F4B0766522AA617F8C6F /* Debug */,
+				2C09BF140FEC3BCB3493BEF4 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		68AAB043AD5E21F893D2C60B /* Build configuration list for PBXProject "SophonExample" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1F5CE81147967EC84AFAF876 /* Debug */,
+				6E0B5C83B9E3413A1A0B556E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		6968B80DA19529D756B4B0C5 /* XCLocalSwiftPackageReference ".." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ..;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		61E409544C51860973237D3E /* SophonGemini */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SophonGemini;
+		};
+		BC381A338AE36F3A0C9DD5EE /* SophonCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SophonCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 9D2CD7AC0C506E7F97A61B34 /* Project object */;
+}

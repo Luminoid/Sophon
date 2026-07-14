@@ -9,3 +9,4 @@
 
 brew "swiftlint"   # 0.59+
 brew "swiftformat" # 0.54+
+brew "xcodegen"    # 2.44+ (generates Example/SophonExample.xcodeproj)

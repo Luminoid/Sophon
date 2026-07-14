@@ -98,10 +98,20 @@ Either way, a 404 persists a reset of the stored model selection to `fallbackMod
 
 `GeminiError` descriptions resolve from the package's string catalog (en, es, zh-Hans, zh-Hant) with app-neutral wording. Apps that want feature-specific copy ("Gemini returned a trip we couldn't read") map the cases at their feature layer.
 
+## Example App
+
+The `Example/` directory contains a small catalog app exercising the package end to end: API key and model settings, schema-constrained structured output, multi-turn chat, and the offline JSON extractor (no API key needed). It uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate the Xcode project:
+
+```bash
+cd Example
+xcodegen generate
+open SophonExample.xcodeproj
+```
+
 ## Development
 
 ```bash
-brew bundle      # install swiftlint + swiftformat
+brew bundle      # install swiftlint + swiftformat + xcodegen
 make setup-hooks # wire pre-commit lint + format
 make check       # SwiftLint --strict + SwiftFormat --lint
 make test        # xcodebuild, iOS simulator (canonical)

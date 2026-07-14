@@ -1,0 +1,40 @@
+name: SophonExample
+options:
+  bundleIdPrefix: dev.luminoid.sophon
+  deploymentTarget:
+    iOS: "18.0"
+  xcodeVersion: "26.0"
+
+packages:
+  Sophon:
+    path: ..
+
+targets:
+  SophonExample:
+    type: application
+    supportedDestinations: [iOS]
+    sources:
+      - Sources
+      - Resources
+    dependencies:
+      - package: Sophon
+        product: SophonCore
+      - package: Sophon
+        product: SophonGemini
+    settings:
+      base:
+        SWIFT_VERSION: "6.2"
+        CODE_SIGN_STYLE: Automatic
+        PRODUCT_BUNDLE_IDENTIFIER: dev.luminoid.sophon.example
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: 1
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: true
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: "UIInterfaceOrientationPortrait"
+      configs:
+        debug:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: DEBUG
