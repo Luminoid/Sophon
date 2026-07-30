@@ -94,6 +94,8 @@ Either way, a 404 persists a reset of the stored model selection to `fallbackMod
 
 `GeminiModel` carries the full preset catalog; `availableModels` scopes what an app offers. A stored selection outside the app's catalog walks `GeminiModel.successor` (Google's documented replacements) and only then falls back, so pruning presets never strands a user's stored choice. `.custom(id)` always passes through.
 
+Pick `defaultModel` and `fallbackModel` from models with a [Gemini API free tier](https://ai.google.dev/gemini-api/docs/pricing): end users supply their own API key, and the out-of-box experience should work on a free key with no billing enabled. Paid-only models (such as Gemini 3.1 Pro) fit `availableModels` as an explicit opt-in.
+
 ## Error copy
 
 `GeminiError` descriptions resolve from the package's string catalog (en, es, zh-Hans, zh-Hant) with app-neutral wording. Apps that want feature-specific copy ("Gemini returned a trip we couldn't read") map the cases at their feature layer.
