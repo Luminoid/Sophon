@@ -18,13 +18,16 @@ public enum GeminiModel: Equatable, Sendable {
     case gemini3Flash
     case gemini31FlashLite
     case gemini31Pro
+    case gemini35FlashLite
     case gemini35Flash
+    case gemini36Flash
     case custom(String)
 
     /// All predefined cases (excludes `.custom`).
     public static let allStandardCases: [Self] = [
         .gemini25FlashLite, .gemini25Flash, .gemini25Pro,
-        .gemini3Flash, .gemini31FlashLite, .gemini31Pro, .gemini35Flash,
+        .gemini3Flash, .gemini31FlashLite, .gemini31Pro,
+        .gemini35FlashLite, .gemini35Flash, .gemini36Flash,
     ]
 
     /// The API model identifier used in the request URL.
@@ -36,7 +39,9 @@ public enum GeminiModel: Equatable, Sendable {
         case .gemini3Flash: "gemini-3-flash-preview"
         case .gemini31FlashLite: "gemini-3.1-flash-lite"
         case .gemini31Pro: "gemini-3.1-pro-preview"
+        case .gemini35FlashLite: "gemini-3.5-flash-lite"
         case .gemini35Flash: "gemini-3.5-flash"
+        case .gemini36Flash: "gemini-3.6-flash"
         case let .custom(id): id
         }
     }
@@ -49,7 +54,9 @@ public enum GeminiModel: Equatable, Sendable {
         case .gemini3Flash: "Gemini 3 Flash (Preview)"
         case .gemini31FlashLite: "Gemini 3.1 Flash-Lite"
         case .gemini31Pro: "Gemini 3.1 Pro (Preview)"
+        case .gemini35FlashLite: "Gemini 3.5 Flash-Lite"
         case .gemini35Flash: "Gemini 3.5 Flash"
+        case .gemini36Flash: "Gemini 3.6 Flash"
         case let .custom(id): id
         }
     }
@@ -63,21 +70,30 @@ public enum GeminiModel: Equatable, Sendable {
         case .gemini3Flash: "gemini3Flash"
         case .gemini31FlashLite: "gemini31FlashLite"
         case .gemini31Pro: "gemini31Pro"
+        case .gemini35FlashLite: "gemini35FlashLite"
         case .gemini35Flash: "gemini35Flash"
+        case .gemini36Flash: "gemini36Flash"
         case .custom: "custom"
         }
     }
 
-    /// Google's documented replacement for a deprecated preset (2.5 family shuts
-    /// down 2026-10-16; 3 Flash Preview shutdown announced). `GeminiModelStore`
-    /// walks this chain when a stored model is outside the app's catalog, so
-    /// existing users land on the closest successor, not the fallback.
+    /// Google's documented replacement for a deprecated preset, or the closest
+    /// same-tier upgrade for presets an app prunes. Verified against the
+    /// deprecations + pricing pages 2026-08-03: the stable 2.5 family has no
+    /// announced shutdown date (only its previews are retired); 3 Flash Preview
+    /// is deprecated with 3.6 Flash as its documented replacement; 3.6 Flash and
+    /// 3.5 Flash-Lite went GA 2026-07-21 and BOTH have a free tier; the Pro line
+    /// remains topped by 3.1 Pro (paid-only; no 3.5/3.6 Pro exists).
+    /// `GeminiModelStore` walks this chain when a stored model is outside the
+    /// app's catalog, so existing users land on the closest successor, not the
+    /// fallback.
     public var successor: Self? {
         switch self {
         case .gemini25FlashLite: .gemini31FlashLite
         case .gemini25Flash: .gemini35Flash
         case .gemini25Pro: .gemini31Pro
-        case .gemini3Flash: .gemini35Flash
+        case .gemini3Flash: .gemini36Flash
+        case .gemini31FlashLite: .gemini35FlashLite
         default: nil
         }
     }
@@ -94,7 +110,9 @@ public enum GeminiModel: Equatable, Sendable {
         case "gemini3Flash": .gemini3Flash
         case "gemini31FlashLite": .gemini31FlashLite
         case "gemini31Pro": .gemini31Pro
+        case "gemini35FlashLite": .gemini35FlashLite
         case "gemini35Flash": .gemini35Flash
+        case "gemini36Flash": .gemini36Flash
         case "custom":
             if let id = customModelID, !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 .custom(id)

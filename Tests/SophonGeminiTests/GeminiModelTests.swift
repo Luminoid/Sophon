@@ -14,8 +14,8 @@ struct GeminiModelTests {
     // MARK: - Catalog
 
     @Test
-    func `Standard cases count is 7`() {
-        #expect(GeminiModel.allStandardCases.count == 7)
+    func `Standard cases count is 9`() {
+        #expect(GeminiModel.allStandardCases.count == 9)
     }
 
     @Test
@@ -35,7 +35,9 @@ struct GeminiModelTests {
         #expect(GeminiModel.gemini3Flash.modelID == "gemini-3-flash-preview")
         #expect(GeminiModel.gemini31FlashLite.modelID == "gemini-3.1-flash-lite")
         #expect(GeminiModel.gemini31Pro.modelID == "gemini-3.1-pro-preview")
+        #expect(GeminiModel.gemini35FlashLite.modelID == "gemini-3.5-flash-lite")
         #expect(GeminiModel.gemini35Flash.modelID == "gemini-3.5-flash")
+        #expect(GeminiModel.gemini36Flash.modelID == "gemini-3.6-flash")
     }
 
     @Test
@@ -87,19 +89,22 @@ struct GeminiModelTests {
         #expect(GeminiModel.gemini25FlashLite.successor == .gemini31FlashLite)
         #expect(GeminiModel.gemini25Flash.successor == .gemini35Flash)
         #expect(GeminiModel.gemini25Pro.successor == .gemini31Pro)
-        #expect(GeminiModel.gemini3Flash.successor == .gemini35Flash)
+        #expect(GeminiModel.gemini3Flash.successor == .gemini36Flash)
+        #expect(GeminiModel.gemini31FlashLite.successor == .gemini35FlashLite)
+        #expect(GeminiModel.gemini35FlashLite.successor == nil)
         #expect(GeminiModel.gemini35Flash.successor == nil)
+        #expect(GeminiModel.gemini36Flash.successor == nil)
     }
 
     // MARK: - Store Resolution
 
-    /// A pruned catalog: only the 3.x presets are offered.
+    /// A pruned catalog mirroring the consumer apps: only current 3.x presets.
     private func makePrunedStore(defaults: UserDefaults) -> GeminiModelStore {
         GeminiModelStore(configuration: TestSupport.makeConfiguration(
             defaults: defaults,
-            defaultModel: .gemini35Flash,
-            fallbackModel: .gemini31FlashLite,
-            availableModels: [.gemini31FlashLite, .gemini31Pro, .gemini35Flash]
+            defaultModel: .gemini36Flash,
+            fallbackModel: .gemini35FlashLite,
+            availableModels: [.gemini31FlashLite, .gemini31Pro, .gemini35FlashLite, .gemini35Flash, .gemini36Flash]
         ))
     }
 
@@ -116,7 +121,7 @@ struct GeminiModelTests {
     @Test
     func `Store returns configured default when nothing is stored`() {
         let defaults = TestSupport.makeDefaults()
-        #expect(makePrunedStore(defaults: defaults).current == .gemini35Flash)
+        #expect(makePrunedStore(defaults: defaults).current == .gemini36Flash)
         #expect(makeFullStore(defaults: defaults).current == .gemini31FlashLite)
     }
 
@@ -133,7 +138,7 @@ struct GeminiModelTests {
             ("gemini25FlashLite", .gemini31FlashLite),
             ("gemini25Flash", .gemini35Flash),
             ("gemini25Pro", .gemini31Pro),
-            ("gemini3Flash", .gemini35Flash),
+            ("gemini3Flash", .gemini36Flash),
         ]
         for (stored, expected) in cases {
             let defaults = TestSupport.makeDefaults()
@@ -153,7 +158,7 @@ struct GeminiModelTests {
     func `Store falls back on unknown stored key`() {
         let defaults = TestSupport.makeDefaults()
         defaults.set("someRetiredKey", forKey: "ai.geminiModel")
-        #expect(makePrunedStore(defaults: defaults).current == .gemini31FlashLite)
+        #expect(makePrunedStore(defaults: defaults).current == .gemini35FlashLite)
     }
 
     @Test
@@ -161,7 +166,7 @@ struct GeminiModelTests {
         let defaults = TestSupport.makeDefaults()
         defaults.set("custom", forKey: "ai.geminiModel")
         defaults.set("   ", forKey: "ai.geminiCustomModel")
-        #expect(makePrunedStore(defaults: defaults).current == .gemini31FlashLite)
+        #expect(makePrunedStore(defaults: defaults).current == .gemini35FlashLite)
     }
 
     @Test
@@ -192,7 +197,7 @@ struct GeminiModelTests {
         let store = makePrunedStore(defaults: defaults)
 
         store.resetToFallback()
-        #expect(defaults.string(forKey: "ai.geminiModel") == "gemini31FlashLite")
-        #expect(store.current == .gemini31FlashLite)
+        #expect(defaults.string(forKey: "ai.geminiModel") == "gemini35FlashLite")
+        #expect(store.current == .gemini35FlashLite)
     }
 }

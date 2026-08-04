@@ -84,7 +84,6 @@ private let aboutItems: [InfoItem] = [
 final class ExampleViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
     // MARK: - Constants
 
-    // swiftlint:disable:next force_unwrapping
     private static let githubURL = URL(string: "https://github.com/Luminoid/Sophon")!
     private static let aboutSectionIndex = exampleSections.count
 
