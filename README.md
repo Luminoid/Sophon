@@ -33,8 +33,8 @@ import SophonGemini
 extension GeminiClientConfiguration {
     static let myApp = GeminiClientConfiguration(
         keychainAccount: "com.myapp.geminiAPIKey",
-        defaultModel: .gemini35Flash,
-        availableModels: [.gemini31FlashLite, .gemini31Pro, .gemini35Flash],
+        defaultModel: .gemini38Flash,
+        availableModels: [.gemini31FlashLite, .gemini31Pro, .gemini35FlashLite, .gemini38Flash],
         retryPolicy: .default,
         logHandler: { level, message in MyLogger.log(level, message) }
     )

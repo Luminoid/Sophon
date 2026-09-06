@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `GeminiModel` presets for Gemini 3.5 Flash-Lite, 3.6 Flash, 3.7 Flash, and 3.8 Flash (all free-tier). Stored 3 Flash Preview selections resolve to 3.6 Flash and 3.1 Flash-Lite to 3.5 Flash-Lite.
+
+### Fixed
+
+- `LLMDecoding.int` no longer traps on out-of-range values; non-finite doubles are rejected and confidence is clamped to 0...1.
+
 ## [0.1.0] - 2026-07-14
 
 Initial release: a shared Gemini kernel extracted from three production iOS apps that previously each carried it as copy-pasted code.

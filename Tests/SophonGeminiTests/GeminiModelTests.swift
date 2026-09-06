@@ -14,8 +14,8 @@ struct GeminiModelTests {
     // MARK: - Catalog
 
     @Test
-    func `Standard cases count is 9`() {
-        #expect(GeminiModel.allStandardCases.count == 9)
+    func `Standard cases count is 11`() {
+        #expect(GeminiModel.allStandardCases.count == 11)
     }
 
     @Test
@@ -38,6 +38,8 @@ struct GeminiModelTests {
         #expect(GeminiModel.gemini35FlashLite.modelID == "gemini-3.5-flash-lite")
         #expect(GeminiModel.gemini35Flash.modelID == "gemini-3.5-flash")
         #expect(GeminiModel.gemini36Flash.modelID == "gemini-3.6-flash")
+        #expect(GeminiModel.gemini37Flash.modelID == "gemini-3.7-flash")
+        #expect(GeminiModel.gemini38Flash.modelID == "gemini-3.8-flash")
     }
 
     @Test
@@ -94,6 +96,8 @@ struct GeminiModelTests {
         #expect(GeminiModel.gemini35FlashLite.successor == nil)
         #expect(GeminiModel.gemini35Flash.successor == nil)
         #expect(GeminiModel.gemini36Flash.successor == nil)
+        #expect(GeminiModel.gemini37Flash.successor == nil)
+        #expect(GeminiModel.gemini38Flash.successor == nil)
     }
 
     // MARK: - Store Resolution
