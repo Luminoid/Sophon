@@ -1,6 +1,11 @@
 # Sophon
 
-Shared AI infrastructure for Swift apps. v0.1.x speaks one provider, Google Gemini, and packages a request/retry/decoding kernel extracted from three production iOS apps that previously each carried it as copy-pasted code.
+[![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
+[![Platforms](https://img.shields.io/badge/platforms-iOS%2018%2B%20%7C%20macOS%2015%2B%20%7C%20Mac%20Catalyst%2018%2B-blue.svg)](Package.swift)
+[![Release](https://img.shields.io/github/v/release/Luminoid/Sophon)](https://github.com/Luminoid/Sophon/releases/latest)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+
+Gemini client for Swift. Sophon is a Swift Package for iOS 18+, macOS 15+, and Mac Catalyst that wraps the Google Gemini API with schema-constrained structured output, configurable retry policies, a model catalog that falls back automatically when Google retires a model, and lenient decoding for the JSON that LLMs actually return. The request/retry/decoding kernel was extracted from three production iOS apps that each carried it as copy-pasted code, and it ships in all three today (see [Used in](#used-in)). Gemini is the only provider so far; further providers land as sibling targets on the same core.
 
 > 智子, the proton-sized intelligence from *The Three-Body Problem*: it observes and reports.
 
@@ -120,8 +125,21 @@ make test        # xcodebuild, iOS simulator (canonical)
 make test-host   # swift test (fast, Foundation-only surface)
 ```
 
+## Used in
+
+Sophon carries the Gemini integration in three App Store apps for iPhone, iPad, and Mac:
+
+| App | What it is |
+|-----|------------|
+| [Plantfolio](https://apps.apple.com/us/app/plantfolio-plus/id6757148663) | Plant care: AI plant identification, seasonal watering schedules, collections ([site](https://plantfolio.luminoid.dev)) |
+| [Petfolio](https://apps.apple.com/us/app/petfolio-pet-care/id6764127493) | Pet care: health logs, vet visits, medication schedules, Family Sharing ([site](https://petfolio.luminoid.dev)) |
+| [TripDays](https://apps.apple.com/us/app/tripdays-trip-planner/id6794614173) | Collaborative travel planner: itineraries, paste-to-fill travel links, shared trips, expense splitting ([site](https://tripdays.luminoid.dev)) |
+
 ## License
 
 MIT. © Luminoid. See [LICENSE](LICENSE) and [CHANGELOG](CHANGELOG.md).
 
-Scaffolded with [Monolith](https://github.com/Luminoid/Monolith).
+## Related projects
+
+- [Monolith](https://github.com/Luminoid/Monolith): CLI that scaffolds iOS apps, Swift Packages, and Swift CLIs (Sophon was scaffolded with it)
+- Everything else at [luminoid.dev](https://luminoid.dev)
