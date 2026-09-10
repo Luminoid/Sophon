@@ -28,6 +28,8 @@ dependencies: [
 ]
 ```
 
+Sophon is listed on the [Swift Package Index](https://swiftpackageindex.com/Luminoid/Sophon), which hosts the DocC API reference for [SophonCore](https://swiftpackageindex.com/Luminoid/Sophon/documentation/sophoncore) and [SophonGemini](https://swiftpackageindex.com/Luminoid/Sophon/documentation/sophongemini).
+
 ## Usage
 
 Each app defines one configuration and one shared client:
