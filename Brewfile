@@ -8,5 +8,5 @@
 # only if you're debugging a tool that worked on an older release.
 
 brew "swiftlint"   # 0.59+
-brew "swiftformat" # 0.54+
+brew "swiftformat" # 0.60.1+
 brew "xcodegen"    # 2.44+ (generates Example/SophonExample.xcodeproj)
