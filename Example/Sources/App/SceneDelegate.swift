@@ -2,7 +2,7 @@
 //  SceneDelegate.swift
 //  SophonExample
 //
-//  Minimal example app demonstrating the Sophon Gemini client.
+//  Minimal example app demonstrating the Sophon clients.
 //
 
 import UIKit

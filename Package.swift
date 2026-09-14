@@ -21,7 +21,10 @@ let package = Package(
         .target(
             name: "SophonCore",
             dependencies: [],
-            path: "Sources/SophonCore"
+            path: "Sources/SophonCore",
+            resources: [
+                .process("Resources"),
+            ]
         ),
         .target(
             name: "SophonGemini",
@@ -67,7 +70,7 @@ let package = Package(
         ),
         .testTarget(
             name: "SophonGeminiTests",
-            dependencies: ["SophonGemini"],
+            dependencies: ["SophonGemini", "SophonTestSupport"],
             path: "Tests/SophonGeminiTests"
         ),
         .testTarget(

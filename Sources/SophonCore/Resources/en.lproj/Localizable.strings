@@ -1,0 +1,13 @@
+//
+//  Localizable.strings
+//  SophonCore
+//
+
+"llm.error.apiKeyInaccessible" = "Couldn't read the API key from the Keychain. Unlock the device and try again.";
+"llm.error.emptyInput" = "Please enter some text first.";
+"llm.error.imageEncodingFailed" = "Failed to encode image.";
+"llm.error.invalidResponse" = "Could not parse the AI response. Please try again.";
+"llm.error.networkError" = "Network error";
+"llm.error.rateLimited" = "Too many requests. Please wait and try again.";
+"llm.error.requestTooLarge" = "The request is too large. Try fewer or smaller images.";
+"llm.error.responseTruncated" = "The response was too long to complete. Please try again.";

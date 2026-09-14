@@ -1,0 +1,13 @@
+//
+//  Localizable.strings
+//  SophonCore
+//
+
+"llm.error.apiKeyInaccessible" = "No se pudo leer la clave de API del llavero. Desbloquee el dispositivo e inténtelo de nuevo.";
+"llm.error.emptyInput" = "Ingrese texto primero.";
+"llm.error.imageEncodingFailed" = "Error al codificar la imagen.";
+"llm.error.invalidResponse" = "No se pudo analizar la respuesta de la IA. Inténtelo de nuevo.";
+"llm.error.networkError" = "Error de red";
+"llm.error.rateLimited" = "Demasiadas solicitudes. Espere e intente de nuevo.";
+"llm.error.requestTooLarge" = "La solicitud es demasiado grande. Pruebe con menos imágenes o más pequeñas.";
+"llm.error.responseTruncated" = "La respuesta fue demasiado larga para completarse. Inténtelo de nuevo.";

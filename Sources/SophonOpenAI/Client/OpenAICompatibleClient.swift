@@ -4,8 +4,9 @@
 //
 //  Networking layer for OpenAI and every OpenAI-compatible endpoint: request
 //  building for both wire formats, policy-driven retry via the shared
-//  `LLMRetryLoop`, structured/plain-text decoding with truncated-JSON
-//  recovery, and live model listing. Generic over the provider's catalog.
+//  `LLMRetryLoop`, structured/plain-text decoding with brace repair for
+//  responses that end early without a truncation signal, and live model
+//  listing. Generic over the provider's catalog.
 //
 
 import Foundation
@@ -16,21 +17,29 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
     public let configuration: OpenAICompatibleConfiguration<Model>
     public let modelStore: LLMModelStore<Model>
     private let session: URLSession
+    private let ownsSession: Bool
 
     /// Build a client from a configuration. Pass a custom `session` to add
-    /// debug network logging or, in tests, a `URLProtocol` mock; nil builds one
-    /// from the configuration's timeouts.
+    /// debug network logging or, in tests, a `URLProtocol` mock; nil builds an
+    /// ephemeral one from the configuration's timeouts (no shared URL cache or
+    /// cookie jar, so a cached `GET /models` can never go stale on disk).
     public init(configuration: OpenAICompatibleConfiguration<Model>, session: URLSession? = nil) {
         self.configuration = configuration
         modelStore = configuration.modelStore
         if let session {
             self.session = session
+            ownsSession = false
         } else {
-            let sessionConfig = URLSessionConfiguration.default
+            let sessionConfig = URLSessionConfiguration.ephemeral
             sessionConfig.timeoutIntervalForRequest = configuration.requestTimeout
             sessionConfig.timeoutIntervalForResource = configuration.resourceTimeout
             self.session = URLSession(configuration: sessionConfig)
+            ownsSession = true
         }
+    }
+
+    deinit {
+        if ownsSession { session.finishTasksAndInvalidate() }
     }
 
     public var providerDisplayName: String { configuration.endpoint.displayName }
@@ -43,6 +52,14 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
 
     public func loadAPIKey() -> String? {
         configuration.loadAPIKey()
+    }
+
+    /// The stored key, or `apiKeyMissing` / `apiKeyInaccessible` (locked Keychain).
+    private func requireAPIKey() throws -> String {
+        try configuration.requireAPIKey(
+            missing: { OpenAIError.apiKeyMissing(provider: providerDisplayName) },
+            inaccessible: OpenAIError.apiKeyInaccessible
+        )
     }
 
     // MARK: - Request Building & Execution
@@ -85,6 +102,9 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
     private func makePlan(contents: [LLMMessage], modelID: String?, responseSchema: LLMSchema?, temperature: Double) -> OpenAIRequestPlan {
         let resolvedModelID = modelID ?? modelStore.current.modelID
         let preset = Model.allStandardCases.first { $0.modelID == resolvedModelID } ?? Model.custom(resolvedModelID)
+        if contents.contains(where: { $0.role == .system && $0.parts.contains(where: \.isMedia) }) {
+            log(.warning, "\(providerDisplayName): media parts in a system message are dropped; the wire format carries system text only")
+        }
         return OpenAIRequestPlan(
             endpoint: endpoint,
             modelID: resolvedModelID,
@@ -155,7 +175,7 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
         retryPolicy: LLMRetryPolicy? = nil,
         buildRequest: (LLMRequestVariant) async throws -> URLRequest
     ) async throws -> T {
-        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, buildRequest: buildRequest) { data, response in
+        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: true, buildRequest: buildRequest) { data, response in
             try self.decodeResponse(type, data: data, httpResponse: response, label: label)
         }
     }
@@ -166,7 +186,7 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
         retryPolicy: LLMRetryPolicy? = nil,
         buildRequest: (LLMRequestVariant) async throws -> URLRequest
     ) async throws -> String {
-        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, buildRequest: buildRequest) { data, response in
+        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: true, buildRequest: buildRequest) { data, response in
             try self.extractPlainTextResponse(data: data, httpResponse: response)
         }
     }
@@ -175,7 +195,8 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
 
     /// One-call structured generation: prompt (+ optional media parts) in,
     /// decoded result out. Loads the API key itself and encodes the request body
-    /// off-main; downscale-on-retry does not apply since the parts are pre-encoded.
+    /// off-main. The parts are pre-encoded, so an oversized request fails at
+    /// once rather than re-sending the same body.
     public func generateStructured<T: Decodable>(
         _ type: T.Type,
         label: String,
@@ -185,8 +206,8 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
         temperature: Double = 0.1,
         retryPolicy: LLMRetryPolicy? = nil
     ) async throws -> T {
-        guard let apiKey = loadAPIKey() else { throw OpenAIError.apiKeyMissing(provider: providerDisplayName) }
-        return try await send(type, label: label, retryPolicy: retryPolicy) { [self] variant in
+        let apiKey = try requireAPIKey()
+        return try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: false, buildRequest: { [self] variant in
             var request = try makeBaseRequest(apiKey: apiKey, path: endpoint.wireFormat.generationPath, method: "POST")
             let plan = makePlan(
                 contents: [LLMMessage(parts: parts + [.text(prompt)], role: .user)],
@@ -196,7 +217,9 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
             )
             request.httpBody = try await Self.encodeBody(plan)
             return request
-        }
+        }, decode: { data, response in
+            try self.decodeResponse(type, data: data, httpResponse: response, label: label)
+        })
     }
 
     /// One-call plain-text generation over explicit role-tagged messages
@@ -208,18 +231,21 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
         temperature: Double = 0.3,
         retryPolicy: LLMRetryPolicy? = nil
     ) async throws -> String {
-        guard let apiKey = loadAPIKey() else { throw OpenAIError.apiKeyMissing(provider: providerDisplayName) }
-        return try await sendPlainText(label: label, retryPolicy: retryPolicy) { [self] variant in
+        let apiKey = try requireAPIKey()
+        return try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: false, buildRequest: { [self] variant in
             var request = try makeBaseRequest(apiKey: apiKey, path: endpoint.wireFormat.generationPath, method: "POST")
             let plan = makePlan(contents: contents, modelID: variant.modelID, responseSchema: nil, temperature: temperature)
             request.httpBody = try await Self.encodeBody(plan)
             return request
-        }
+        }, decode: { data, response in
+            try self.extractPlainTextResponse(data: data, httpResponse: response)
+        })
     }
 
     private func sendWithRetry<R>(
         label: String,
         policy: LLMRetryPolicy,
+        canDownscaleImages: Bool,
         buildRequest: (LLMRequestVariant) async throws -> URLRequest,
         decode: (Data, HTTPURLResponse) throws -> R
     ) async throws -> R {
@@ -229,6 +255,7 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
             policy: policy,
             initialModelID: modelStore.current.modelID,
             fallbackModelID: configuration.fallbackModel.modelID,
+            canDownscaleImages: canDownscaleImages,
             log: { level, message in self.log(level, message) },
             buildRequest: buildRequest,
             perform: { request in try await self.performRequest(request) },
@@ -240,8 +267,7 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
 
     /// The models the endpoint serves right now (`GET /models`). No retry.
     public func listModels() async throws -> [LLMRemoteModel] {
-        guard let apiKey = loadAPIKey() else { throw OpenAIError.apiKeyMissing(provider: providerDisplayName) }
-        return try await listModels(apiKey: apiKey)
+        try await listModels(apiKey: requireAPIKey())
     }
 
     /// `listModels()` with an explicit key, for callers that hold the key themselves.
@@ -271,14 +297,17 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
         do {
             return try JSONDecoder().decode(T.self, from: Data(text.utf8))
         } catch {
-            // Last-ditch: the JSON may be truncated. Try a conservative brace repair and decode
-            // once more; the repaired form is used only if it decodes cleanly.
+            // Last-ditch: the model may have stopped mid-object without a length
+            // signal (a real truncation is thrown as `responseTruncated` before
+            // reaching here). Try a conservative brace repair and decode once
+            // more; the repaired form is used only if it decodes cleanly.
             if let repaired = LLMJSONExtractor.repairTruncatedJSON(text), repaired != text,
                let recovered = try? JSONDecoder().decode(T.self, from: Data(repaired.utf8)) {
                 log(.info, "\(providerDisplayName) \(label): recovered truncated JSON via brace repair")
                 return recovered
             }
-            log(.error, "Failed to decode \(providerDisplayName) \(label) | \(LLMJSONExtractor.decodingErrorDetail(error)) | Raw: \(text.prefix(500))")
+            log(.error, "Failed to decode \(providerDisplayName) \(label) | \(LLMJSONExtractor.decodingErrorDetail(error)) | \(text.utf8.count) bytes")
+            log(.debug, "\(providerDisplayName) \(label) raw response: \(text.prefix(500))")
             throw OpenAIError.invalidResponse
         }
     }
@@ -353,6 +382,9 @@ public final class OpenAICompatibleClient<Model: OpenAICompatibleModel>: LLMClie
             }
             log(.error, "\(providerDisplayName) rejected the request (HTTP \(status)): \(message)")
             throw status == 400 ? OpenAIError.invalidRequest(message) : OpenAIError.serverError(status)
+        case 413:
+            log(.warning, "\(providerDisplayName) API request too large: \(message)")
+            throw OpenAIError.requestTooLarge
         case 429:
             if payload?.indicatesInsufficientQuota == true {
                 log(.error, "\(providerDisplayName) reports exhausted quota: \(message)")

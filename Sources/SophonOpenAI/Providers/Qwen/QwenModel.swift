@@ -105,8 +105,3 @@ public enum QwenModel: OpenAICompatibleModel {
 
 public typealias QwenClientConfiguration = OpenAICompatibleConfiguration<QwenModel>
 public typealias QwenAPIClient = OpenAICompatibleClient<QwenModel>
-
-public extension OpenAICompatibleConfiguration where Model == QwenModel {
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    var isQwenAvailable: Bool { isAvailable }
-}

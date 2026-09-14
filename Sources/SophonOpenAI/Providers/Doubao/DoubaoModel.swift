@@ -64,8 +64,3 @@ public enum DoubaoModel: OpenAICompatibleModel {
 
 public typealias DoubaoClientConfiguration = OpenAICompatibleConfiguration<DoubaoModel>
 public typealias DoubaoAPIClient = OpenAICompatibleClient<DoubaoModel>
-
-public extension OpenAICompatibleConfiguration where Model == DoubaoModel {
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    var isDoubaoAvailable: Bool { isAvailable }
-}

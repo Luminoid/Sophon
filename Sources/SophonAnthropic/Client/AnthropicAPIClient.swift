@@ -5,7 +5,8 @@
 //  Networking layer for Messages API calls: request building, policy-driven
 //  retry via the shared `LLMRetryLoop` (backoff, Retry-After, overload,
 //  retired-model fallback, image downscale), structured/plain-text decoding
-//  with truncated-JSON recovery, and live model listing.
+//  with brace repair for responses that end early without a truncation
+//  signal, and live model listing.
 //
 
 import Foundation
@@ -16,21 +17,29 @@ public final class AnthropicAPIClient: LLMClient {
     public let configuration: AnthropicClientConfiguration
     public let modelStore: AnthropicModelStore
     private let session: URLSession
+    private let ownsSession: Bool
 
     /// Build a client from a configuration. Pass a custom `session` to add
-    /// debug network logging or, in tests, a `URLProtocol` mock; nil builds one
-    /// from the configuration's timeouts.
+    /// debug network logging or, in tests, a `URLProtocol` mock; nil builds an
+    /// ephemeral one from the configuration's timeouts (no shared URL cache or
+    /// cookie jar, so a cached `GET /models` can never go stale on disk).
     public init(configuration: AnthropicClientConfiguration, session: URLSession? = nil) {
         self.configuration = configuration
         modelStore = configuration.modelStore
         if let session {
             self.session = session
+            ownsSession = false
         } else {
-            let sessionConfig = URLSessionConfiguration.default
+            let sessionConfig = URLSessionConfiguration.ephemeral
             sessionConfig.timeoutIntervalForRequest = configuration.requestTimeout
             sessionConfig.timeoutIntervalForResource = configuration.resourceTimeout
             self.session = URLSession(configuration: sessionConfig)
+            ownsSession = true
         }
+    }
+
+    deinit {
+        if ownsSession { session.finishTasksAndInvalidate() }
     }
 
     public var providerDisplayName: String { "Claude" }
@@ -41,6 +50,11 @@ public final class AnthropicAPIClient: LLMClient {
 
     public func loadAPIKey() -> String? {
         configuration.loadAPIKey()
+    }
+
+    /// The stored key, or `apiKeyMissing` / `apiKeyInaccessible` (locked Keychain).
+    private func requireAPIKey() throws -> String {
+        try configuration.requireAPIKey(missing: { AnthropicError.apiKeyMissing }, inaccessible: AnthropicError.apiKeyInaccessible)
     }
 
     // MARK: - Request Building & Execution
@@ -74,7 +88,7 @@ public final class AnthropicAPIClient: LLMClient {
         responseSchema: LLMSchema? = nil,
         temperature: Double = 0.3
     ) throws -> URLRequest {
-        var request = try makeBaseRequest(apiKey: apiKey, path: "messages", method: "POST")
+        var request = try makeMessagesRequest(apiKey: apiKey)
         let body = makeBody(contents: contents, modelID: modelID, responseSchema: responseSchema, temperature: temperature)
         request.httpBody = try JSONEncoder().encode(body)
         return request
@@ -83,6 +97,9 @@ public final class AnthropicAPIClient: LLMClient {
     private func makeBody(contents: [LLMMessage], modelID: String?, responseSchema: LLMSchema?, temperature: Double) -> AnthropicRequest {
         let resolvedModelID = modelID ?? modelStore.current.modelID
         let preset = AnthropicModel.allStandardCases.first { $0.modelID == resolvedModelID } ?? .custom(resolvedModelID)
+        if contents.contains(where: { $0.role == .system && $0.parts.contains(where: \.isMedia) }) {
+            log(.warning, "Claude: media parts in a system message are dropped; `system` carries text only")
+        }
         return AnthropicRequest.make(
             modelID: resolvedModelID,
             messages: contents,
@@ -100,13 +117,28 @@ public final class AnthropicAPIClient: LLMClient {
         try await Task.detached { try JSONEncoder().encode(body) }.value
     }
 
-    private func makeBaseRequest(apiKey: String, path: String, method: String) throws -> URLRequest {
+    private func makeMessagesRequest(apiKey: String) throws -> URLRequest {
+        let urlString = configuration.apiBaseURL + "messages"
+        guard let url = URL(string: urlString) else { throw AnthropicError.invalidEndpoint(urlString) }
+        return try makeBaseRequest(apiKey: apiKey, url: url, method: "POST")
+    }
+
+    private func makeListRequest(apiKey: String, afterID: String?) throws -> URLRequest {
+        let urlString = configuration.apiBaseURL + "models"
+        guard var components = URLComponents(string: urlString) else { throw AnthropicError.invalidEndpoint(urlString) }
+        var items = [URLQueryItem(name: "limit", value: "1000")]
+        if let afterID { items.append(URLQueryItem(name: "after_id", value: afterID)) }
+        components.queryItems = items
+        guard let url = components.url else { throw AnthropicError.invalidEndpoint(urlString) }
+        return try makeBaseRequest(apiKey: apiKey, url: url, method: "GET")
+    }
+
+    private func makeBaseRequest(apiKey: String, url: URL, method: String) throws -> URLRequest {
         // The key rides in a header, never in the URL: NSURLError userInfo
         // embeds the failing URL verbatim, so a query-string key would leak
         // into every transport-error log.
-        let urlString = configuration.apiBaseURL + path
-        guard let url = URL(string: urlString), url.scheme != nil, url.host() != nil else {
-            throw AnthropicError.invalidEndpoint(urlString)
+        guard url.scheme != nil, url.host() != nil else {
+            throw AnthropicError.invalidEndpoint(url.absoluteString)
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -145,7 +177,7 @@ public final class AnthropicAPIClient: LLMClient {
         retryPolicy: LLMRetryPolicy? = nil,
         buildRequest: (LLMRequestVariant) async throws -> URLRequest
     ) async throws -> T {
-        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, buildRequest: buildRequest) { data, response in
+        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: true, buildRequest: buildRequest) { data, response in
             try self.decodeResponse(type, data: data, httpResponse: response, label: label)
         }
     }
@@ -156,7 +188,7 @@ public final class AnthropicAPIClient: LLMClient {
         retryPolicy: LLMRetryPolicy? = nil,
         buildRequest: (LLMRequestVariant) async throws -> URLRequest
     ) async throws -> String {
-        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, buildRequest: buildRequest) { data, response in
+        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: true, buildRequest: buildRequest) { data, response in
             try self.extractPlainTextResponse(data: data, httpResponse: response)
         }
     }
@@ -165,7 +197,8 @@ public final class AnthropicAPIClient: LLMClient {
 
     /// One-call structured generation: prompt (+ optional media parts) in,
     /// decoded result out. Loads the API key itself and encodes the request body
-    /// off-main; downscale-on-retry does not apply since the parts are pre-encoded.
+    /// off-main. The parts are pre-encoded, so an oversized request fails at
+    /// once rather than re-sending the same body.
     public func generateStructured<T: Decodable>(
         _ type: T.Type,
         label: String,
@@ -175,9 +208,9 @@ public final class AnthropicAPIClient: LLMClient {
         temperature: Double = 0.1,
         retryPolicy: LLMRetryPolicy? = nil
     ) async throws -> T {
-        guard let apiKey = loadAPIKey() else { throw AnthropicError.apiKeyMissing }
-        return try await send(type, label: label, retryPolicy: retryPolicy) { [self] variant in
-            var request = try makeBaseRequest(apiKey: apiKey, path: "messages", method: "POST")
+        let apiKey = try requireAPIKey()
+        return try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: false, buildRequest: { [self] variant in
+            var request = try makeMessagesRequest(apiKey: apiKey)
             let body = makeBody(
                 contents: [LLMMessage(parts: parts + [.text(prompt)], role: .user)],
                 modelID: variant.modelID,
@@ -186,7 +219,9 @@ public final class AnthropicAPIClient: LLMClient {
             )
             request.httpBody = try await Self.encodeBody(body)
             return request
-        }
+        }, decode: { data, response in
+            try self.decodeResponse(type, data: data, httpResponse: response, label: label)
+        })
     }
 
     /// One-call plain-text generation over explicit role-tagged messages
@@ -198,18 +233,21 @@ public final class AnthropicAPIClient: LLMClient {
         temperature: Double = 0.3,
         retryPolicy: LLMRetryPolicy? = nil
     ) async throws -> String {
-        guard let apiKey = loadAPIKey() else { throw AnthropicError.apiKeyMissing }
-        return try await sendPlainText(label: label, retryPolicy: retryPolicy) { [self] variant in
-            var request = try makeBaseRequest(apiKey: apiKey, path: "messages", method: "POST")
+        let apiKey = try requireAPIKey()
+        return try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: false, buildRequest: { [self] variant in
+            var request = try makeMessagesRequest(apiKey: apiKey)
             let body = makeBody(contents: contents, modelID: variant.modelID, responseSchema: nil, temperature: temperature)
             request.httpBody = try await Self.encodeBody(body)
             return request
-        }
+        }, decode: { data, response in
+            try self.extractPlainTextResponse(data: data, httpResponse: response)
+        })
     }
 
     private func sendWithRetry<R>(
         label: String,
         policy: LLMRetryPolicy,
+        canDownscaleImages: Bool,
         buildRequest: (LLMRequestVariant) async throws -> URLRequest,
         decode: (Data, HTTPURLResponse) throws -> R
     ) async throws -> R {
@@ -219,6 +257,7 @@ public final class AnthropicAPIClient: LLMClient {
             policy: policy,
             initialModelID: modelStore.current.modelID,
             fallbackModelID: configuration.fallbackModel.modelID,
+            canDownscaleImages: canDownscaleImages,
             log: { level, message in self.log(level, message) },
             buildRequest: buildRequest,
             perform: { request in try await self.performRequest(request) },
@@ -231,8 +270,7 @@ public final class AnthropicAPIClient: LLMClient {
     /// The models the API serves right now (`GET /v1/models`). Pages through
     /// the listing; no retry.
     public func listModels() async throws -> [LLMRemoteModel] {
-        guard let apiKey = loadAPIKey() else { throw AnthropicError.apiKeyMissing }
-        return try await listModels(apiKey: apiKey)
+        try await listModels(apiKey: requireAPIKey())
     }
 
     /// `listModels()` with an explicit key, for callers that hold the key themselves.
@@ -241,9 +279,7 @@ public final class AnthropicAPIClient: LLMClient {
         var afterID: String?
         var pagesFetched = 0
         repeat {
-            var path = "models?limit=1000"
-            if let afterID { path += "&after_id=\(afterID)" }
-            let request = try makeBaseRequest(apiKey: apiKey, path: path, method: "GET")
+            let request = try makeListRequest(apiKey: apiKey, afterID: afterID)
             let (data, httpResponse) = try await performRequest(request)
             try throwForStatus(httpResponse, data: data, resetsRetiredModel: false)
             let page: AnthropicModelListResponse
@@ -275,14 +311,18 @@ public final class AnthropicAPIClient: LLMClient {
         do {
             return try JSONDecoder().decode(T.self, from: Data(text.utf8))
         } catch {
-            // Last-ditch: the JSON may be truncated. Try a conservative brace repair and decode
-            // once more; the repaired form is used only if it decodes cleanly.
+            // Last-ditch: the model may have stopped mid-object without a
+            // max_tokens signal (a real truncation is thrown as
+            // `responseTruncated` before reaching here). Try a conservative brace
+            // repair and decode once more; the repaired form is used only if it
+            // decodes cleanly.
             if let repaired = LLMJSONExtractor.repairTruncatedJSON(text), repaired != text,
                let recovered = try? JSONDecoder().decode(T.self, from: Data(repaired.utf8)) {
                 log(.info, "Claude \(label): recovered truncated JSON via brace repair")
                 return recovered
             }
-            log(.error, "Failed to decode Claude \(label) | \(LLMJSONExtractor.decodingErrorDetail(error)) | Raw: \(text.prefix(500))")
+            log(.error, "Failed to decode Claude \(label) | \(LLMJSONExtractor.decodingErrorDetail(error)) | \(text.utf8.count) bytes")
+            log(.debug, "Claude \(label) raw response: \(text.prefix(500))")
             throw AnthropicError.invalidResponse
         }
     }
@@ -341,6 +381,10 @@ public final class AnthropicAPIClient: LLMClient {
             log(.error, "Claude API endpoint not found: \(message)")
             throw AnthropicError.serverError(404)
         case 400:
+            if payload?.indicatesInsufficientCredit == true {
+                log(.error, "Claude API reports an exhausted credit balance: \(message)")
+                throw AnthropicError.insufficientQuota
+            }
             log(.error, "Claude API rejected the request: \(message)")
             throw AnthropicError.invalidRequest(message)
         case 413:

@@ -1,0 +1,13 @@
+//
+//  Localizable.strings
+//  SophonCore
+//
+
+"llm.error.apiKeyInaccessible" = "無法從鑰匙圈讀取 API 金鑰，請解鎖裝置後重試。";
+"llm.error.emptyInput" = "請先輸入文字。";
+"llm.error.imageEncodingFailed" = "圖片編碼失敗。";
+"llm.error.invalidResponse" = "無法解析 AI 回應，請重試。";
+"llm.error.networkError" = "網路錯誤";
+"llm.error.rateLimited" = "請求過於頻繁，請稍後再試。";
+"llm.error.requestTooLarge" = "請求過大，請減少圖片數量或縮小圖片。";
+"llm.error.responseTruncated" = "回覆內容過長未能完成，請重試。";

@@ -46,6 +46,9 @@ public enum GeminiModel: LLMModelPreset {
         note: "Google AI Studio keys call the Flash, Flash-Lite, and 2.5 Pro models with no billing account (rate-limited); 3.1 Pro is paid-only."
     )
 
+    /// Where the user gets an API key, for settings hints.
+    public static let keyHintURL = URL(string: "https://aistudio.google.com/apikey")
+
     private static let contextWindow = 1_048_576
 
     public var customModelID: String? {

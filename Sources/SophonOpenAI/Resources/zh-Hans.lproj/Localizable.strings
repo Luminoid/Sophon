@@ -5,15 +5,9 @@
 
 "openai.error.apiKeyMissing" = "未设置 %@ API 密钥，请在设置中添加。";
 "openai.error.contentBlocked" = "AI 无法处理此内容。";
-"openai.error.emptyInput" = "请先输入文本。";
-"openai.error.imageEncodingFailed" = "图片编码失败。";
 "openai.error.insufficientQuota" = "API 账户余额不足，请到服务商处检查账单。";
 "openai.error.invalidAPIKey" = "%@ API 密钥无效，请在设置中检查。";
 "openai.error.invalidEndpoint" = "配置的 API 端点无效。";
 "openai.error.invalidRequest" = "服务商拒绝了该请求。";
-"openai.error.invalidResponse" = "无法解析 AI 响应，请重试。";
 "openai.error.modelRetired" = "所选模型已不可用，已重置为默认模型，请重试。";
-"openai.error.networkError" = "网络错误";
-"openai.error.rateLimited" = "请求过于频繁，请稍后再试。";
-"openai.error.responseTruncated" = "回复内容过长未能完成，请重试。";
 "openai.error.serverError" = "AI 服务器错误";

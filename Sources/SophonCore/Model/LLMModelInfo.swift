@@ -137,9 +137,16 @@ public struct LLMModelInfo: Sendable, Equatable {
     }
 
     /// A calendar day at midnight UTC, for catalog release and shutdown dates.
+    /// Traps on an impossible date: catalog literals are developer data, and
+    /// every catalog is read in tests, so a typo fails there rather than
+    /// silently becoming a date in the distant past.
     public static func day(_ year: Int, _ month: Int, _ day: Int) -> Date {
         var calendar = Calendar(identifier: .gregorian)
-        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .current
-        return calendar.date(from: DateComponents(year: year, month: month, day: day)) ?? .distantPast
+        calendar.timeZone = .gmt
+        let components = DateComponents(year: year, month: month, day: day)
+        guard components.isValidDate(in: calendar), let date = calendar.date(from: components) else {
+            preconditionFailure("Impossible catalog date \(year)-\(month)-\(day)")
+        }
+        return date
     }
 }

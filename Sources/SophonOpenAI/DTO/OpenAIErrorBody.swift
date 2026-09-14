@@ -39,8 +39,10 @@ struct OpenAIErrorPayload: Decodable {
         "model_not_found", "modelnotfound", "modelnotopen", "invalid_model", "1211",
     ]
 
+    /// No bare "not found": a gateway's "endpoint not found" body that happens
+    /// to mention the model must not reset the user's selection.
     private static let unknownModelPhrases = [
-        "model not found", "not found", "not exist", "does not exist", "no such model", "invalid model", "unknown model", "模型不存在",
+        "model not found", "not exist", "no such model", "invalid model", "unknown model", "模型不存在",
     ]
 
     var indicatesUnknownModel: Bool {

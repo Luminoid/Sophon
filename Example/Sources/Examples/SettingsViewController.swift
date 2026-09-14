@@ -19,27 +19,15 @@ final class SettingsViewController: ExamplePageViewController {
     private lazy var providerButton: UIButton = {
         var config = UIButton.Configuration.gray()
         config.cornerStyle = .medium
+        config.buttonSize = .large
         let button = UIButton(configuration: config)
         button.showsMenuAsPrimaryAction = true
+        button.accessibilityLabel = "Provider"
+        button.accessibilityHint = "Opens a list of providers."
         return button
     }()
 
-    private lazy var accessLabel: UILabel = {
-        let label = UILabel()
-        label.font = .preferredFont(forTextStyle: .footnote)
-        label.adjustsFontForContentSizeCategory = true
-        label.textColor = .secondaryLabel
-        label.numberOfLines = 0
-        return label
-    }()
-
-    private lazy var statusLabel: UILabel = {
-        let label = UILabel()
-        label.font = .preferredFont(forTextStyle: .body)
-        label.adjustsFontForContentSizeCategory = true
-        label.numberOfLines = 0
-        return label
-    }()
+    private lazy var accessLabel = makeFootnoteLabel()
 
     private lazy var keyField: UITextField = {
         let field = UITextField()
@@ -47,7 +35,22 @@ final class SettingsViewController: ExamplePageViewController {
         field.isSecureTextEntry = true
         field.autocorrectionType = .no
         field.autocapitalizationType = .none
+        field.font = .preferredFont(forTextStyle: .body)
+        field.adjustsFontForContentSizeCategory = true
         return field
+    }()
+
+    private lazy var deleteButton: UIButton = {
+        let button = makeSecondaryButton("Delete") { [weak self] in self?.deleteKey() }
+        button.role = .destructive
+        return button
+    }()
+
+    /// Inline confirmation under the Save/Delete row; the Status section is off-screen on phones.
+    private lazy var keyStatusLabel: UILabel = {
+        let label = makeFootnoteLabel()
+        label.isHidden = true
+        return label
     }()
 
     private lazy var enabledSwitch: UISwitch = {
@@ -70,12 +73,25 @@ final class SettingsViewController: ExamplePageViewController {
     private lazy var modelButton: UIButton = {
         var config = UIButton.Configuration.gray()
         config.cornerStyle = .medium
+        config.buttonSize = .large
         let button = UIButton(configuration: config)
         button.showsMenuAsPrimaryAction = true
+        button.accessibilityLabel = "Model"
+        button.accessibilityHint = "Opens a list of models."
         return button
     }()
 
+    private lazy var fetchButton = makeSecondaryButton("Fetch models from the API") { [weak self] in self?.fetchModels() }
+    private lazy var listingLabel = makeFootnoteLabel()
     private lazy var listedModelsTextView = makeResultTextView()
+
+    private lazy var statusLabel: UILabel = {
+        let label = UILabel()
+        label.font = .preferredFont(forTextStyle: .body)
+        label.adjustsFontForContentSizeCategory = true
+        label.numberOfLines = 0
+        return label
+    }()
 
     // MARK: - Init
 
@@ -96,11 +112,12 @@ final class SettingsViewController: ExamplePageViewController {
         stackView.addArrangedSubview(keyField)
         let buttonRow = UIStackView(arrangedSubviews: [
             makeActionButton("Save") { [weak self] in self?.saveKey() },
-            makeSecondaryButton("Delete") { [weak self] in self?.deleteKey() },
+            deleteButton,
         ])
         buttonRow.spacing = 12
         buttonRow.distribution = .fillEqually
         stackView.addArrangedSubview(buttonRow)
+        stackView.addArrangedSubview(keyStatusLabel)
         addFootnote("Stored in the Keychain under the account this app's configuration names, one per provider and region.")
 
         addSectionHeader("Feature Toggle")
@@ -112,12 +129,17 @@ final class SettingsViewController: ExamplePageViewController {
         addSectionHeader("Model")
         stackView.addArrangedSubview(modelButton)
         addFootnote("Presets come from the catalog's current models; Sophon picks the default. A stored model the app no longer offers resolves through the successor chain, then the fallback model.")
-        stackView.addArrangedSubview(makeSecondaryButton("Fetch models from the API") { [weak self] in self?.fetchModels() })
+        stackView.addArrangedSubview(fetchButton)
+        stackView.addArrangedSubview(listingLabel)
         stackView.addArrangedSubview(listedModelsTextView)
 
         addSectionHeader("Status")
         stackView.addArrangedSubview(statusLabel)
+    }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        // A second window or a returning user sees the current selection and key state.
         rebuildProviderMenu()
         refreshProvider()
     }
@@ -125,19 +147,26 @@ final class SettingsViewController: ExamplePageViewController {
     // MARK: - Actions
 
     private func saveKey() {
-        guard let key = keyField.text, !key.isEmpty else { return }
-        do {
-            try provider.configuration.saveAPIKey(key)
-            keyField.text = nil
-        } catch {
-            statusLabel.text = error.localizedDescription
+        let key = (keyField.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else {
+            showKeyStatus("Enter a key first.")
             return
         }
+        do {
+            try provider.configuration.saveAPIKey(key)
+        } catch {
+            showKeyStatus(error.localizedDescription)
+            return
+        }
+        keyField.text = nil
+        showKeyStatus("Key saved.")
         refreshStatus()
     }
 
     private func deleteKey() {
         provider.configuration.deleteAPIKey()
+        keyField.text = nil
+        showKeyStatus("Key removed.")
         refreshStatus()
     }
 
@@ -146,7 +175,9 @@ final class SettingsViewController: ExamplePageViewController {
         alert.addTextField { [provider] in $0.placeholder = provider.client.currentModelID }
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
         alert.addAction(UIAlertAction(title: "Use", style: .default) { [weak self, weak alert] _ in
-            guard let self, let id = alert?.textFields?.first?.text, !id.isEmpty else { return }
+            guard let self else { return }
+            let id = (alert?.textFields?.first?.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty else { return }
             provider.selectCustomModel(id)
             rebuildModelMenu()
             refreshStatus()
@@ -156,21 +187,19 @@ final class SettingsViewController: ExamplePageViewController {
 
     private func fetchModels() {
         listTask?.cancel()
+        setBusy(true, on: fetchButton)
         listedModelsTextView.text = "Loading…"
-        let client = provider.client
+        let selected = provider
         listTask = Task { [weak self] in
             do {
-                let models = try await client.listModels()
+                let models = try await selected.listModels()
                 guard let self, !Task.isCancelled else { return }
-                listedModelsTextView.text = models.map { model in
-                    var line = model.id
-                    if let name = model.displayName, name != model.id { line += "  (\(name))" }
-                    if let limit = model.inputTokenLimit { line += "  \(limit) in" }
-                    return line
-                }.joined(separator: "\n")
+                listedModelsTextView.text = models.isEmpty ? "No models returned." : models.map(Self.describe).joined(separator: "\n")
+                setBusy(false, on: fetchButton)
             } catch {
                 guard let self, !Task.isCancelled else { return }
                 listedModelsTextView.text = "Error: \(error.localizedDescription)"
+                setBusy(false, on: fetchButton)
             }
         }
     }
@@ -188,14 +217,21 @@ final class SettingsViewController: ExamplePageViewController {
         }
         providerButton.menu = UIMenu(children: actions)
         providerButton.configuration?.title = current
+        providerButton.accessibilityValue = current
     }
 
     private func refreshProvider() {
         listTask?.cancel()
+        setBusy(false, on: fetchButton)
+        // A key typed for the previous provider must never be saved under this one.
+        keyField.text = nil
+        showKeyStatus(nil)
         keyField.placeholder = "\(provider.title) API key"
         toggleLabel.text = "\(provider.title) enabled"
+        enabledSwitch.accessibilityLabel = toggleLabel.text
         enabledSwitch.isOn = provider.configuration.isEnabled
         listedModelsTextView.text = ""
+        listingLabel.text = provider.listModelsNote
         accessLabel.text = Self.accessDescription(provider)
         rebuildModelMenu()
         refreshStatus()
@@ -203,7 +239,7 @@ final class SettingsViewController: ExamplePageViewController {
 
     private func rebuildModelMenu() {
         var actions = provider.modelOptions().map { option in
-            UIAction(title: option.title, state: option.isSelected ? .on : .off) { [weak self] _ in
+            UIAction(title: option.title, subtitle: option.subtitle, state: option.isSelected ? .on : .off) { [weak self] _ in
                 option.select()
                 self?.rebuildModelMenu()
                 self?.refreshStatus()
@@ -214,6 +250,7 @@ final class SettingsViewController: ExamplePageViewController {
         })
         modelButton.menu = UIMenu(children: actions)
         modelButton.configuration?.title = provider.currentModelName()
+        modelButton.accessibilityValue = provider.currentModelName()
     }
 
     private func refreshStatus() {
@@ -226,13 +263,27 @@ final class SettingsViewController: ExamplePageViewController {
         """
     }
 
+    private func showKeyStatus(_ text: String?) {
+        keyStatusLabel.text = text
+        keyStatusLabel.isHidden = text == nil
+    }
+
+    // MARK: - Helpers
+
     private static func accessDescription(_ provider: ExampleProviderDescriptor) -> String {
-        let access = switch provider.freeAccess {
-        case let .permanentTier(note): "Free tier: \(note)"
-        case let .newUserQuota(note): "New-user quota: \(note)"
-        case let .trialCredit(note): "Trial credit: \(note)"
-        case .none: "Paid from the first token."
-        }
+        let access = provider.freeAccess.note ?? "Paid from the first token."
         return provider.keyHint.isEmpty ? access : "\(access)\nGet a key at \(provider.keyHint)"
+    }
+
+    private static func describe(_ model: LLMRemoteModel) -> String {
+        var line = model.id
+        if let name = model.displayName, name != model.id { line += "  (\(name))" }
+        switch (model.inputTokenLimit, model.outputTokenLimit) {
+        case let (input?, output?): line += "  \(input) in / \(output) out"
+        case let (input?, nil): line += "  \(input) in"
+        case let (nil, output?): line += "  \(output) out"
+        case (nil, nil): break
+        }
+        return line
     }
 }

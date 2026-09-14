@@ -2,98 +2,37 @@
 //  GeminiAPIClientRetryTests.swift
 //  SophonGeminiTests
 //
-//  Tests for the retry-aware send layer: transient-error backoff, permanent-error
-//  short-circuit, 404 model fallback, safety/truncation surfacing, and the
-//  difference between the .default and .minimal retry policies.
+//  Tests for the retry-aware send layer through the shared mock transport:
+//  transient-error backoff, permanent-error short-circuit, 404 model fallback,
+//  the 413 re-encode, safety/truncation surfacing, and the difference between
+//  the .default and .minimal retry policies.
 //
 
 import Foundation
 import SophonGemini
+import SophonTestSupport
 import Testing
-
-// MARK: - Mock URL Protocol
-
-/// Returns a fixed sequence of canned responses, one per request, so the retry loop can be driven
-/// deterministically. The last stub repeats if more requests arrive than stubs were provided.
-final class GeminiMockURLProtocol: URLProtocol {
-    struct Stub {
-        let statusCode: Int
-        let body: Data
-        let headers: [String: String]
-    }
-
-    // URLSession calls startLoading on its own worker queue while tests read on
-    // the MainActor; the lock keeps the shared stub state coherent either way.
-    private static let lock = NSLock()
-    private nonisolated(unsafe) static var protectedStubs: [Stub] = []
-    private nonisolated(unsafe) static var protectedRequestCount = 0
-
-    static var stubs: [Stub] {
-        get { lock.withLock { protectedStubs } }
-        set { lock.withLock { protectedStubs = newValue } }
-    }
-
-    static var requestCount: Int {
-        lock.withLock { protectedRequestCount }
-    }
-
-    static func reset() {
-        lock.withLock {
-            protectedStubs = []
-            protectedRequestCount = 0
-        }
-    }
-
-    // URLProtocol requirements are `class func`s, so `static` cannot override them.
-    // swiftlint:disable static_over_final_class
-    override class func canInit(with request: URLRequest) -> Bool {
-        true
-    }
-
-    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
-        request
-    }
-
-    // swiftlint:enable static_over_final_class
-
-    override func startLoading() {
-        let nextStub: Stub? = Self.lock.withLock {
-            guard !Self.protectedStubs.isEmpty else { return nil }
-            let index = min(Self.protectedRequestCount, Self.protectedStubs.count - 1)
-            Self.protectedRequestCount += 1
-            return Self.protectedStubs[index]
-        }
-        guard let stub = nextStub else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-            return
-        }
-        guard let url = request.url ?? URL(string: "https://example.com"),
-              let response = HTTPURLResponse(url: url, statusCode: stub.statusCode, httpVersion: nil, headerFields: stub.headers) else {
-            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
-            return
-        }
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: stub.body)
-        client?.urlProtocolDidFinishLoading(self)
-    }
-
-    override func stopLoading() {}
-}
-
-// MARK: - Tests
 
 @MainActor @Suite(.serialized)
 struct GeminiAPIClientRetryTests {
-    private static let validPlainTextBody = Data(#"{"candidates":[{"content":{"parts":[{"text":"hello"}]},"finishReason":"STOP"}]}"#.utf8)
+    private static let host = "generativelanguage.googleapis.com"
+    private static let validPlainTextBody = #"{"candidates":[{"content":{"parts":[{"text":"hello"}]},"finishReason":"STOP"}]}"#
 
     private func makeClient(
         policy: GeminiRetryPolicy = .default,
         defaults: UserDefaults? = nil
     ) -> GeminiAPIClient {
-        let sessionConfig = URLSessionConfiguration.ephemeral
-        sessionConfig.protocolClasses = [GeminiMockURLProtocol.self]
-        let configuration = TestSupport.makeConfiguration(defaults: defaults, retryPolicy: policy)
-        return GeminiAPIClient(configuration: configuration, session: URLSession(configuration: sessionConfig))
+        let fast = GeminiRetryPolicy(
+            maxAttempts: policy.maxAttempts,
+            baseDelay: 0.001,
+            maxDelay: 0.002,
+            honorsRetryAfter: policy.honorsRetryAfter,
+            usesJitter: policy.usesJitter,
+            retriesWithFallbackModelOn404: policy.retriesWithFallbackModelOn404,
+            downscalesImagesOnRetry: policy.downscalesImagesOnRetry
+        )
+        let configuration = TestSupport.makeConfiguration(defaults: defaults, retryPolicy: fast)
+        return GeminiAPIClient(configuration: configuration, session: LLMMockURLProtocol.makeSession())
     }
 
     private static func simpleRequest() throws -> URLRequest {
@@ -102,42 +41,40 @@ struct GeminiAPIClientRetryTests {
         return request
     }
 
+    private static func stub(_ statusCode: Int, json: String = "{}") -> LLMMockURLProtocol.Stub {
+        .init(statusCode: statusCode, json: json)
+    }
+
     // MARK: - Transient Retry
 
     @Test
     func `transient 503 is retried and succeeds on second attempt`() async throws {
-        GeminiMockURLProtocol.reset()
-        GeminiMockURLProtocol.stubs = [
-            .init(statusCode: 503, body: Data("{}".utf8), headers: [:]),
-            .init(statusCode: 200, body: Self.validPlainTextBody, headers: [:]),
-        ]
+        LLMMockURLProtocol.reset(host: Self.host)
+        LLMMockURLProtocol.setStubs([Self.stub(503), Self.stub(200, json: Self.validPlainTextBody)], for: Self.host)
         let client = makeClient()
 
         let result = try await client.sendPlainText(label: "test") { _ in try Self.simpleRequest() }
 
         #expect(result == "hello")
-        #expect(GeminiMockURLProtocol.requestCount == 2)
+        #expect(LLMMockURLProtocol.requestCount(for: Self.host) == 2)
     }
 
     @Test
     func `minimal policy still retries transient errors`() async throws {
-        GeminiMockURLProtocol.reset()
-        GeminiMockURLProtocol.stubs = [
-            .init(statusCode: 503, body: Data("{}".utf8), headers: [:]),
-            .init(statusCode: 200, body: Self.validPlainTextBody, headers: [:]),
-        ]
+        LLMMockURLProtocol.reset(host: Self.host)
+        LLMMockURLProtocol.setStubs([Self.stub(503), Self.stub(200, json: Self.validPlainTextBody)], for: Self.host)
         let client = makeClient(policy: .minimal)
 
         let result = try await client.sendPlainText(label: "test") { _ in try Self.simpleRequest() }
 
         #expect(result == "hello")
-        #expect(GeminiMockURLProtocol.requestCount == 2)
+        #expect(LLMMockURLProtocol.requestCount(for: Self.host) == 2)
     }
 
     @Test
     func `permanent 401 is not retried`() async throws {
-        GeminiMockURLProtocol.reset()
-        GeminiMockURLProtocol.stubs = [.init(statusCode: 401, body: Data("{}".utf8), headers: [:])]
+        LLMMockURLProtocol.reset(host: Self.host)
+        LLMMockURLProtocol.setStubs([Self.stub(401)], for: Self.host)
         let client = makeClient()
 
         var caught: GeminiError?
@@ -151,21 +88,48 @@ struct GeminiAPIClientRetryTests {
             Issue.record("Expected invalidAPIKey, got \(String(describing: caught))")
             return
         }
-        #expect(GeminiMockURLProtocol.requestCount == 1)
+        #expect(LLMMockURLProtocol.requestCount(for: Self.host) == 1)
+    }
+
+    @Test
+    func `413 retries once with compressed images, then fails`() async throws {
+        LLMMockURLProtocol.reset(host: Self.host)
+        LLMMockURLProtocol.setStubs([Self.stub(413), Self.stub(200, json: Self.validPlainTextBody)], for: Self.host)
+        let client = makeClient()
+
+        var compressed: [Bool] = []
+        let result = try await client.sendPlainText(label: "test") { variant in
+            compressed.append(variant.useCompressedImages)
+            return try Self.simpleRequest()
+        }
+        #expect(result == "hello")
+        #expect(compressed == [false, true])
+
+        // A second 413 after the re-encode is final: no identical third upload.
+        LLMMockURLProtocol.reset(host: Self.host)
+        LLMMockURLProtocol.setStubs([Self.stub(413)], for: Self.host)
+        var caught: GeminiError?
+        do {
+            _ = try await client.sendPlainText(label: "test") { _ in try Self.simpleRequest() }
+        } catch let error as GeminiError {
+            caught = error
+        }
+        guard let caught, case .requestTooLarge = caught else {
+            Issue.record("Expected requestTooLarge, got \(String(describing: caught))")
+            return
+        }
+        #expect(LLMMockURLProtocol.requestCount(for: Self.host) == 2)
     }
 
     // MARK: - Model Fallback
 
     @Test
     func `404 retries against the fallback model and persists the reset`() async throws {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         defaults.set("gemini35Flash", forKey: "ai.geminiModel") // != fallback
 
-        GeminiMockURLProtocol.reset()
-        GeminiMockURLProtocol.stubs = [
-            .init(statusCode: 404, body: Data("{}".utf8), headers: [:]),
-            .init(statusCode: 200, body: Self.validPlainTextBody, headers: [:]),
-        ]
+        LLMMockURLProtocol.reset(host: Self.host)
+        LLMMockURLProtocol.setStubs([Self.stub(404), Self.stub(200, json: Self.validPlainTextBody)], for: Self.host)
         let client = makeClient(defaults: defaults)
 
         var seenModels: [String] = []
@@ -175,7 +139,7 @@ struct GeminiAPIClientRetryTests {
         }
 
         #expect(result == "hello")
-        #expect(GeminiMockURLProtocol.requestCount == 2)
+        #expect(LLMMockURLProtocol.requestCount(for: Self.host) == 2)
         #expect(seenModels.first == "gemini-3.5-flash")
         #expect(seenModels.last == GeminiModel.gemini31FlashLite.modelID)
         #expect(defaults.string(forKey: "ai.geminiModel") == GeminiModel.gemini31FlashLite.storageKey)
@@ -183,11 +147,11 @@ struct GeminiAPIClientRetryTests {
 
     @Test
     func `minimal policy fails the call on 404 but still persists the reset`() async throws {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         defaults.set("gemini35Flash", forKey: "ai.geminiModel")
 
-        GeminiMockURLProtocol.reset()
-        GeminiMockURLProtocol.stubs = [.init(statusCode: 404, body: Data("{}".utf8), headers: [:])]
+        LLMMockURLProtocol.reset(host: Self.host)
+        LLMMockURLProtocol.setStubs([Self.stub(404)], for: Self.host)
         let client = makeClient(policy: .minimal, defaults: defaults)
 
         var caught: GeminiError?
@@ -201,7 +165,7 @@ struct GeminiAPIClientRetryTests {
             Issue.record("Expected modelRetired, got \(String(describing: caught))")
             return
         }
-        #expect(GeminiMockURLProtocol.requestCount == 1)
+        #expect(LLMMockURLProtocol.requestCount(for: Self.host) == 1)
         #expect(defaults.string(forKey: "ai.geminiModel") == GeminiModel.gemini31FlashLite.storageKey)
     }
 
@@ -209,9 +173,8 @@ struct GeminiAPIClientRetryTests {
 
     @Test
     func `prompt block reason surfaces as contentBlocked`() async throws {
-        GeminiMockURLProtocol.reset()
-        let body = Data(#"{"promptFeedback":{"blockReason":"SAFETY"}}"#.utf8)
-        GeminiMockURLProtocol.stubs = [.init(statusCode: 200, body: body, headers: [:])]
+        LLMMockURLProtocol.reset(host: Self.host)
+        LLMMockURLProtocol.setStubs([Self.stub(200, json: #"{"promptFeedback":{"blockReason":"SAFETY"}}"#)], for: Self.host)
         let client = makeClient()
 
         var caught: GeminiError?
@@ -225,14 +188,14 @@ struct GeminiAPIClientRetryTests {
             Issue.record("Expected contentBlocked, got \(String(describing: caught))")
             return
         }
-        #expect(GeminiMockURLProtocol.requestCount == 1) // not retried
+        #expect(LLMMockURLProtocol.requestCount(for: Self.host) == 1) // not retried
     }
 
     @Test
     func `MAX_TOKENS finish reason surfaces as responseTruncated`() async throws {
-        GeminiMockURLProtocol.reset()
-        let body = Data(#"{"candidates":[{"content":{"parts":[{"text":"partial"}]},"finishReason":"MAX_TOKENS"}]}"#.utf8)
-        GeminiMockURLProtocol.stubs = [.init(statusCode: 200, body: body, headers: [:])]
+        LLMMockURLProtocol.reset(host: Self.host)
+        let body = #"{"candidates":[{"content":{"parts":[{"text":"partial"}]},"finishReason":"MAX_TOKENS"}]}"#
+        LLMMockURLProtocol.setStubs([Self.stub(200, json: body)], for: Self.host)
         let client = makeClient()
 
         var caught: GeminiError?
@@ -246,22 +209,10 @@ struct GeminiAPIClientRetryTests {
             Issue.record("Expected responseTruncated, got \(String(describing: caught))")
             return
         }
-        #expect(GeminiMockURLProtocol.requestCount == 1)
+        #expect(LLMMockURLProtocol.requestCount(for: Self.host) == 1)
     }
 
     // MARK: - Pure Policy Helpers
-
-    @Test
-    func `retryAfter header is parsed and clamped`() {
-        let three = TestSupport.makeHTTPResponse(status: 429, headers: ["Retry-After": "3"])
-        #expect(GeminiAPIClient.retryAfterSeconds(from: three, cap: 6.0) == 3)
-
-        let huge = TestSupport.makeHTTPResponse(status: 429, headers: ["Retry-After": "9999"])
-        #expect(GeminiAPIClient.retryAfterSeconds(from: huge, cap: 6.0) == 6.0)
-
-        let absent = TestSupport.makeHTTPResponse(status: 429, headers: nil)
-        #expect(GeminiAPIClient.retryAfterSeconds(from: absent, cap: 6.0) == nil)
-    }
 
     @Test
     func `default policy backoff grows exponentially and stays capped`() {

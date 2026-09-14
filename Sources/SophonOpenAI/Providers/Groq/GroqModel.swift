@@ -77,8 +77,3 @@ public enum GroqModel: OpenAICompatibleModel {
 
 public typealias GroqClientConfiguration = OpenAICompatibleConfiguration<GroqModel>
 public typealias GroqAPIClient = OpenAICompatibleClient<GroqModel>
-
-public extension OpenAICompatibleConfiguration where Model == GroqModel {
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    var isGroqAvailable: Bool { isAvailable }
-}

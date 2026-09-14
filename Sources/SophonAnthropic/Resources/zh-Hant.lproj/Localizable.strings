@@ -5,16 +5,10 @@
 
 "anthropic.error.apiKeyMissing" = "未設定 Claude API 金鑰，請在設定中新增。";
 "anthropic.error.contentBlocked" = "Claude 拒絕處理此內容。";
-"anthropic.error.emptyInput" = "請先輸入文字。";
-"anthropic.error.imageEncodingFailed" = "圖片編碼失敗。";
+"anthropic.error.insufficientQuota" = "Claude API 帳戶餘額不足，請在 Claude 主控台檢查帳單。";
 "anthropic.error.invalidAPIKey" = "Claude API 金鑰無效，請在設定中檢查。";
 "anthropic.error.invalidEndpoint" = "設定的 API 端點無效。";
 "anthropic.error.invalidRequest" = "Claude 拒絕了該請求。";
-"anthropic.error.invalidResponse" = "無法解析 AI 回應，請重試。";
 "anthropic.error.modelRetired" = "所選 Claude 模型已不可用，已重設為預設模型，請重試。";
-"anthropic.error.networkError" = "網路錯誤";
 "anthropic.error.overloaded" = "Claude 暫時過載，請稍後重試。";
-"anthropic.error.rateLimited" = "請求過於頻繁，請稍後再試。";
-"anthropic.error.requestTooLarge" = "請求過大，請減少圖片數量或縮小圖片。";
-"anthropic.error.responseTruncated" = "回覆內容過長未能完成，請重試。";
 "anthropic.error.serverError" = "Claude 伺服器錯誤";

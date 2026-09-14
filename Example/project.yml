@@ -29,6 +29,9 @@ targets:
       base:
         SWIFT_VERSION: "6.2"
         CODE_SIGN_STYLE: Automatic
+        # Kept empty on purpose: the generated project is committed, and a personal
+        # team ID must never ride along (make check and the pre-commit hook reject one).
+        DEVELOPMENT_TEAM: ""
         PRODUCT_BUNDLE_IDENTIFIER: dev.luminoid.sophon.example
         MARKETING_VERSION: "0.3.0"
         CURRENT_PROJECT_VERSION: 1

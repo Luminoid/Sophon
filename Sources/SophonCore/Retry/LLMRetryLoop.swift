@@ -20,12 +20,17 @@ public enum LLMRetryLoop {
     /// is, without retry. The persisted reset of a retired model selection is
     /// the provider's job (inside `decode`), which is why it happens under every
     /// policy while the in-call fallback retry is policy-gated.
+    ///
+    /// Pass `canDownscaleImages: false` when `buildRequest` cannot act on
+    /// `useCompressedImages` (pre-encoded parts): an oversized-request error
+    /// then fails immediately instead of re-sending the identical body.
     public static func run<R>(
         providerName: String,
         label: String,
         policy: LLMRetryPolicy,
         initialModelID: String,
         fallbackModelID: String,
+        canDownscaleImages: Bool = true,
         isolation: isolated (any Actor)? = #isolation,
         log: (SophonLogLevel, String) -> Void,
         buildRequest: (LLMRequestVariant) async throws -> URLRequest,
@@ -38,6 +43,7 @@ public enum LLMRetryLoop {
         var transientRetries = 0
 
         while true {
+            try Task.checkCancellation()
             var lastResponse: HTTPURLResponse?
             do {
                 let variant = LLMRequestVariant(useCompressedImages: compressImages, modelID: modelID)
@@ -55,16 +61,27 @@ public enum LLMRetryLoop {
                     continue
                 }
 
-                // Transient (429 / 5xx / timeout): exponential backoff, bounded retries.
+                // Transient (429 / 5xx / timeout / too large): exponential backoff, bounded retries.
                 if error.isRetryable, transientRetries < policy.maxRetries {
+                    let downscales = policy.downscalesImagesOnRetry && canDownscaleImages
+                        && error.shouldCompressImagesOnRetry && !compressImages
+                    // A 413 is only worth re-sending with smaller images; an
+                    // identical body would just fail again.
+                    if error.retriesOnlyWithSmallerImages, !downscales {
+                        throw error
+                    }
                     transientRetries += 1
-                    if policy.downscalesImagesOnRetry, error.shouldCompressImagesOnRetry {
+                    if downscales {
                         compressImages = true
                     }
+                    if error.retriesOnlyWithSmallerImages {
+                        log(.info, "\(providerName) \(label): request too large, retry \(transientRetries)/\(policy.maxRetries) with smaller images")
+                        continue
+                    }
                     let retryAfter = lastResponse.flatMap { LLMHTTP.retryAfterSeconds(from: $0, cap: policy.maxDelay) }
-                    let delay = policy.backoffDelay(retry: transientRetries, retryAfter: retryAfter)
+                    let delay = max(0, policy.backoffDelay(retry: transientRetries, retryAfter: retryAfter))
                     log(.info, "\(providerName) \(label): transient error, retry \(transientRetries)/\(policy.maxRetries) in \(String(format: "%.1f", delay))s")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    try await Task.sleep(for: .seconds(delay))
                     continue
                 }
 

@@ -17,15 +17,17 @@ public struct LLMRetryPolicy: Sendable {
     public var baseDelay: TimeInterval
     /// Upper bound for a single backoff wait (seconds), also caps an honored Retry-After.
     public var maxDelay: TimeInterval
-    /// Whether a numeric `Retry-After` response header overrides the computed backoff.
+    /// Whether a `Retry-After` response header (seconds or HTTP date) overrides the computed backoff.
     public var honorsRetryAfter: Bool
     /// Whether a small deterministic jitter (0-20% of the delay) de-correlates retries.
     public var usesJitter: Bool
     /// Whether a retired-model error retries once against the fallback model within the same call.
     public var retriesWithFallbackModelOn404: Bool
-    /// Whether a transport failure re-encodes images smaller before retrying.
+    /// Whether a transport failure or an oversized request re-encodes images smaller before retrying.
     public var downscalesImagesOnRetry: Bool
 
+    /// Delays are sanitized: negative or non-finite values fall back to the
+    /// defaults, so a misconfigured policy can never trap the sleep.
     public init(
         maxAttempts: Int = 3,
         baseDelay: TimeInterval = 0.8,
@@ -35,9 +37,9 @@ public struct LLMRetryPolicy: Sendable {
         retriesWithFallbackModelOn404: Bool = true,
         downscalesImagesOnRetry: Bool = true
     ) {
-        self.maxAttempts = maxAttempts
-        self.baseDelay = baseDelay
-        self.maxDelay = maxDelay
+        self.maxAttempts = max(1, maxAttempts)
+        self.baseDelay = Self.sanitized(baseDelay, default: 0.8)
+        self.maxDelay = Self.sanitized(maxDelay, default: 6.0)
         self.honorsRetryAfter = honorsRetryAfter
         self.usesJitter = usesJitter
         self.retriesWithFallbackModelOn404 = retriesWithFallbackModelOn404
@@ -68,11 +70,15 @@ public struct LLMRetryPolicy: Sendable {
     /// Exponential backoff capped at `maxDelay`, with optional deterministic jitter.
     /// Honors a server `Retry-After` (already parsed to seconds) when enabled.
     public func backoffDelay(retry: Int, retryAfter: TimeInterval?) -> TimeInterval {
-        if honorsRetryAfter, let retryAfter { return min(retryAfter, maxDelay) }
+        if honorsRetryAfter, let retryAfter { return min(max(0, retryAfter), maxDelay) }
         let exponential = baseDelay * pow(2.0, Double(max(0, retry - 1)))
         let capped = min(exponential, maxDelay)
         // Deterministic jitter (0...20% of the delay) to de-correlate retries without Math.random.
         let jitter = usesJitter ? capped * 0.2 * (Double(retry % 3) / 2.0) : 0
         return min(capped + jitter, maxDelay)
+    }
+
+    private static func sanitized(_ value: TimeInterval, default fallback: TimeInterval) -> TimeInterval {
+        value.isFinite ? max(0, value) : fallback
     }
 }

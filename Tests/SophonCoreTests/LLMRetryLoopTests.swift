@@ -4,8 +4,8 @@
 //
 //  Unit tests for the shared retry loop with a fake error type: transient
 //  backoff, permanent short-circuit, one-shot fallback on a retired model,
-//  image downscale on transport failure, and unclassified errors passing
-//  through unretried.
+//  image downscale on transport failure, the size-only retry of an oversized
+//  request, and unclassified errors passing through unretried.
 //
 
 import Foundation
@@ -17,10 +17,12 @@ private enum FakeError: LLMClientError {
     case permanent
     case retired
     case transport
+    case tooLarge
 
-    var isRetryable: Bool { self == .transient || self == .transport }
+    var isRetryable: Bool { self == .transient || self == .transport || self == .tooLarge }
     var isModelRetired: Bool { self == .retired }
-    var shouldCompressImagesOnRetry: Bool { self == .transport }
+    var shouldCompressImagesOnRetry: Bool { self == .transport || self == .tooLarge }
+    var retriesOnlyWithSmallerImages: Bool { self == .tooLarge }
     var errorDescription: String? { nil }
 }
 
@@ -39,6 +41,7 @@ struct LLMRetryLoopTests {
     /// succeeds, an error means decode throws it.
     private static func run(
         policy: LLMRetryPolicy = fastPolicy,
+        canDownscaleImages: Bool = true,
         outcomes: [Error?],
         headers: [String: String]? = nil
     ) async throws -> (result: String, variants: [LLMRequestVariant]) {
@@ -51,6 +54,7 @@ struct LLMRetryLoopTests {
             policy: policy,
             initialModelID: "primary",
             fallbackModelID: "fallback",
+            canDownscaleImages: canDownscaleImages,
             log: { _, _ in },
             buildRequest: { variant in
                 variants.append(variant)
@@ -125,6 +129,61 @@ struct LLMRetryLoopTests {
     }
 
     @Test
+    func `Transport failures are still retried when the body cannot shrink`() async throws {
+        let (result, variants) = try await Self.run(canDownscaleImages: false, outcomes: [FakeError.transport, nil])
+        #expect(result == "ok")
+        #expect(variants.map(\.useCompressedImages) == [false, false])
+    }
+
+    @Test
+    func `An oversized request is retried only with smaller images, and only once`() async throws {
+        let (result, variants) = try await Self.run(outcomes: [FakeError.tooLarge, nil])
+        #expect(result == "ok")
+        #expect(variants.map(\.useCompressedImages) == [false, true])
+
+        // Still too large after the re-encode: no third, identical upload.
+        var attempts = 0
+        let response = try Self.makeResponse()
+        do {
+            _ = try await LLMRetryLoop.run(
+                providerName: "Fake",
+                label: "test",
+                policy: Self.fastPolicy,
+                initialModelID: "primary",
+                fallbackModelID: "fallback",
+                log: { _, _ in },
+                buildRequest: { _ in
+                    attempts += 1
+                    return URLRequest(url: response.url ?? URL(fileURLWithPath: "/"))
+                },
+                perform: { _ in (Data(), response) },
+                decode: { _, _ -> String in throw FakeError.tooLarge }
+            )
+            Issue.record("Expected the second 413 to be final")
+        } catch FakeError.tooLarge {
+            // expected
+        }
+        #expect(attempts == 2)
+    }
+
+    @Test
+    func `An oversized request fails at once when the builder cannot vary the body`() async throws {
+        var attempts = 0
+        do {
+            _ = try await Self.run(canDownscaleImages: false, outcomes: [FakeError.tooLarge, nil])
+            Issue.record("Expected tooLarge")
+        } catch FakeError.tooLarge {
+            attempts = 1
+        }
+        #expect(attempts == 1)
+
+        let noDownscale = LLMRetryPolicy(maxAttempts: 3, baseDelay: 0.001, maxDelay: 0.002, downscalesImagesOnRetry: false)
+        await #expect(throws: FakeError.self) {
+            _ = try await Self.run(policy: noDownscale, outcomes: [FakeError.tooLarge, nil])
+        }
+    }
+
+    @Test
     func `Errors outside LLMClientError propagate without retry`() async {
         await #expect(throws: UnrelatedError.self) {
             _ = try await Self.run(outcomes: [UnrelatedError(), nil])
@@ -137,5 +196,16 @@ struct LLMRetryLoopTests {
         let (result, variants) = try await Self.run(outcomes: [FakeError.transient, nil], headers: ["Retry-After": "9999"])
         #expect(result == "ok")
         #expect(variants.count == 2)
+    }
+
+    @Test
+    func `A cancelled task stops before the next attempt`() async {
+        let task = Task {
+            try await Self.run(outcomes: [FakeError.transient, FakeError.transient, FakeError.transient, nil])
+        }
+        task.cancel()
+        await #expect(throws: CancellationError.self) {
+            _ = try await task.value
+        }
     }
 }

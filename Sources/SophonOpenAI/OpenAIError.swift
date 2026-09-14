@@ -4,8 +4,9 @@
 //
 //  Errors surfaced by the OpenAI-compatible request pipeline, with retry
 //  classification. Key errors carry the endpoint's display name so a Groq or
-//  DeepSeek user reads the right provider in the copy. User-facing copy
-//  resolves from the package's string catalog.
+//  DeepSeek user reads the right provider in the copy. Provider-flavored copy
+//  resolves from this target's strings; the cases every provider shares read
+//  from `LLMErrorCopy` in SophonCore.
 //
 
 import Foundation
@@ -13,6 +14,8 @@ import SophonCore
 
 public enum OpenAIError: LLMClientError {
     case apiKeyMissing(provider: String)
+    /// The Keychain refused to hand over the stored key (device locked); carries the OSStatus.
+    case apiKeyInaccessible(OSStatus)
     case invalidAPIKey(provider: String)
     /// The endpoint base URL and path could not form a request URL (carries the offending string).
     case invalidEndpoint(String)
@@ -26,6 +29,9 @@ public enum OpenAIError: LLMClientError {
     case rateLimited
     /// The account has no remaining credit or quota (HTTP 402, or 429 with a billing code). Not retryable.
     case insufficientQuota
+    /// HTTP 413: the request body is too large. Retried with smaller images
+    /// when the request builder can re-encode them; fails at once otherwise.
+    case requestTooLarge
     case serverError(Int)
     case modelRetired(String)
     /// The provider refused or filtered the content (carries the reason: "refusal", "content_filter").
@@ -37,6 +43,8 @@ public enum OpenAIError: LLMClientError {
         switch self {
         case let .apiKeyMissing(provider):
             String(format: String(localized: "openai.error.apiKeyMissing", bundle: .module), provider)
+        case .apiKeyInaccessible:
+            LLMErrorCopy.apiKeyInaccessible.text
         case let .invalidAPIKey(provider):
             String(format: String(localized: "openai.error.invalidAPIKey", bundle: .module), provider)
         case let .invalidEndpoint(url):
@@ -44,17 +52,19 @@ public enum OpenAIError: LLMClientError {
         case let .invalidRequest(message):
             String(localized: "openai.error.invalidRequest", bundle: .module) + " (\(message))"
         case .emptyInput:
-            String(localized: "openai.error.emptyInput", bundle: .module)
+            LLMErrorCopy.emptyInput.text
         case .imageEncodingFailed:
-            String(localized: "openai.error.imageEncodingFailed", bundle: .module)
+            LLMErrorCopy.imageEncodingFailed.text
         case let .requestFailed(error):
-            String(localized: "openai.error.networkError", bundle: .module) + " (\(error.localizedDescription))"
+            LLMErrorCopy.networkError.text + " (\(error.localizedDescription))"
         case .invalidResponse:
-            String(localized: "openai.error.invalidResponse", bundle: .module)
+            LLMErrorCopy.invalidResponse.text
         case .rateLimited:
-            String(localized: "openai.error.rateLimited", bundle: .module)
+            LLMErrorCopy.rateLimited.text
         case .insufficientQuota:
             String(localized: "openai.error.insufficientQuota", bundle: .module)
+        case .requestTooLarge:
+            LLMErrorCopy.requestTooLarge.text
         case let .serverError(code):
             String(localized: "openai.error.serverError", bundle: .module) + " (\(code))"
         case let .modelRetired(name):
@@ -62,7 +72,7 @@ public enum OpenAIError: LLMClientError {
         case .contentBlocked:
             String(localized: "openai.error.contentBlocked", bundle: .module)
         case .responseTruncated:
-            String(localized: "openai.error.responseTruncated", bundle: .module)
+            LLMErrorCopy.responseTruncated.text
         }
     }
 
@@ -70,7 +80,7 @@ public enum OpenAIError: LLMClientError {
 
     public var isRetryable: Bool {
         switch self {
-        case .rateLimited:
+        case .rateLimited, .requestTooLarge:
             true
         case let .serverError(code):
             LLMHTTP.isRetryableServerCode(code)
@@ -86,8 +96,17 @@ public enum OpenAIError: LLMClientError {
         return false
     }
 
+    /// Transport failures may stem from an oversized image upload, and a 413
+    /// certainly does, so the retry re-encodes the photos smaller.
     public var shouldCompressImagesOnRetry: Bool {
-        if case .requestFailed = self { return true }
+        switch self {
+        case .requestFailed, .requestTooLarge: true
+        default: false
+        }
+    }
+
+    public var retriesOnlyWithSmallerImages: Bool {
+        if case .requestTooLarge = self { return true }
         return false
     }
 }

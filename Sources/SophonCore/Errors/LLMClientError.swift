@@ -18,4 +18,13 @@ public protocol LLMClientError: LocalizedError {
     /// Whether the failure may stem from an oversized upload, so the retry
     /// should re-encode images smaller.
     var shouldCompressImagesOnRetry: Bool { get }
+    /// Whether a retry is pointless unless the images actually shrink (HTTP
+    /// 413): the loop then retries only when it can hand the request builder
+    /// a smaller-image variant, and skips the backoff wait since the body
+    /// changes. Defaults to false.
+    var retriesOnlyWithSmallerImages: Bool { get }
+}
+
+public extension LLMClientError {
+    var retriesOnlyWithSmallerImages: Bool { false }
 }

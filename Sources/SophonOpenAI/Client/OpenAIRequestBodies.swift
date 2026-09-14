@@ -5,41 +5,19 @@
 //  Maps provider-neutral messages onto the two wire formats, including the
 //  structured-output mode: strict `json_schema`, or `json_object` with the
 //  schema spelled out in the prompt for providers that lack schema enforcement.
+//  Messages with no parts are skipped (an empty `content` is a 400 on several
+//  providers); media in system messages is dropped, since both wire formats
+//  carry system text only.
 //
 
 import Foundation
 import SophonCore
 
-/// Everything a request body needs, resolved on the client's actor so encoding
-/// can run off-main.
-struct OpenAIRequestPlan {
-    let endpoint: OpenAIEndpoint
-    let modelID: String
-    let messages: [LLMMessage]
-    /// nil when the model does not accept sampling parameters.
-    let temperature: Double?
-    let maxOutputTokens: Int
-    let schema: LLMSchema?
-}
-
-enum OpenAIRequestBody: Encodable {
-    case chat(OpenAIChatRequest)
-    case responses(OpenAIResponsesRequest)
-
-    func encode(to encoder: any Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch self {
-        case let .chat(request): try container.encode(request)
-        case let .responses(request): try container.encode(request)
-        }
-    }
-}
-
 enum OpenAIRequestBodies {
     static let jsonObjectInstruction = "Respond only with a JSON object that matches this JSON schema:"
 
     static func body(for plan: OpenAIRequestPlan) throws -> OpenAIRequestBody {
-        let messages = try messagesForStructuredMode(plan)
+        let messages = try messagesForStructuredMode(plan).filter { !$0.parts.isEmpty }
         switch plan.endpoint.wireFormat {
         case .chatCompletions:
             return .chat(chatRequest(plan, messages: messages))
@@ -56,7 +34,11 @@ enum OpenAIRequestBodies {
         guard let schema = plan.schema, plan.endpoint.structuredOutputMode == .jsonObject else {
             return plan.messages
         }
-        let schemaJSON = try String(bytes: JSONEncoder().encode(schema.encoded(as: .jsonSchema)), encoding: .utf8) ?? "{}"
+        // The schema is the only constraint on the model in this mode, so a
+        // failure to spell it out must fail the request, not ship "{}".
+        guard let schemaJSON = try String(bytes: JSONEncoder().encode(schema.encoded(as: .jsonSchema)), encoding: .utf8) else {
+            throw OpenAIError.invalidRequest("The response schema could not be rendered for the prompt.")
+        }
         let note = "\n\n\(jsonObjectInstruction)\n\(schemaJSON)"
         var messages = plan.messages
         if let index = messages.lastIndex(where: { $0.role == .user || $0.role == nil }) {

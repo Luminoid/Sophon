@@ -19,7 +19,10 @@ public struct LLMModelStore<Model: LLMModelPreset>: @unchecked Sendable {
     /// Stable safety net when a selected model is retired.
     public let fallbackModel: Model
     /// The presets this app offers. A stored model outside this list resolves
-    /// through `successor`, then `fallbackModel`.
+    /// through `successor`, then `fallbackModel`. `defaultModel` and
+    /// `fallbackModel` are expected to be members; should either fall outside
+    /// (a narrowed roster), `current` substitutes the first offered preset so
+    /// the app never runs a model its own picker can't show.
     public let availableModels: [Model]
 
     public init(
@@ -41,14 +44,15 @@ public struct LLMModelStore<Model: LLMModelPreset>: @unchecked Sendable {
     /// The currently selected model. New installs with no stored selection get
     /// `defaultModel`. A stored model outside the app's catalog is walked
     /// through the successor chain, then falls back to `fallbackModel`.
-    /// `custom` always passes through.
+    /// `custom` always passes through. The result is always a model the app
+    /// offers (see `availableModels`).
     public var current: Model {
         guard let key = defaults.string(forKey: modelDefaultsKey) else {
-            return defaultModel
+            return offered(defaultModel)
         }
         let customID = defaults.string(forKey: customModelDefaultsKey)
         guard let stored = Model.from(storageKey: key, customModelID: customID) else {
-            return fallbackModel
+            return offered(fallbackModel)
         }
         return resolveToCatalog(stored)
     }
@@ -76,11 +80,18 @@ public struct LLMModelStore<Model: LLMModelPreset>: @unchecked Sendable {
         var hops = 0
         while !availableModels.contains(candidate) {
             guard hops < Model.allStandardCases.count, let next = candidate.successor else {
-                return fallbackModel
+                return offered(fallbackModel)
             }
             candidate = next
             hops += 1
         }
         return candidate
+    }
+
+    /// `model` when the app offers it (custom IDs always do), else the first
+    /// offered preset; `model` itself when the roster is empty.
+    private func offered(_ model: Model) -> Model {
+        if model.isCustom || availableModels.contains(model) { return model }
+        return availableModels.first ?? model
     }
 }

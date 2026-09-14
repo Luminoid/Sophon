@@ -72,11 +72,6 @@ public enum OpenRouterModel: OpenAICompatibleModel {
 public typealias OpenRouterClientConfiguration = OpenAICompatibleConfiguration<OpenRouterModel>
 public typealias OpenRouterAPIClient = OpenAICompatibleClient<OpenRouterModel>
 
-public extension OpenAICompatibleConfiguration where Model == OpenRouterModel {
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    var isOpenRouterAvailable: Bool { isAvailable }
-}
-
 public extension OpenAICompatibleClient where Model == OpenRouterModel {
     /// The models OpenRouter serves free of charge right now (IDs ending in `:free`).
     func listFreeModels() async throws -> [LLMRemoteModel] {

@@ -7,6 +7,12 @@
 
 set -euo pipefail
 
+# The generated Example project is committed; a personal signing team must never land in it.
+if git diff --cached -U0 -- '*.pbxproj' | grep -Eiq '^\+.*DEVELOPMENT_?TEAM = "?[A-Za-z0-9]'; then
+    echo "error: a DEVELOPMENT_TEAM is staged in a .pbxproj; keep it empty in the committed project (Example/project.yml pins it)."
+    exit 1
+fi
+
 STAGED=$(git diff --cached --name-only --diff-filter=ACM -- '*.swift')
 
 if [ -z "$STAGED" ]; then

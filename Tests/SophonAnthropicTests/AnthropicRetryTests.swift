@@ -78,7 +78,25 @@ struct AnthropicRetryTests {
         #expect(models.first?.outputTokenLimit == 128_000)
         let requests = LLMMockURLProtocol.requests(for: Self.host)
         #expect(requests.count == 2)
+        #expect(requests.first?.url?.absoluteString == "https://api.anthropic.com/v1/models?limit=1000")
         #expect(requests.last?.url?.absoluteString.contains("after_id=claude-opus-5") == true)
         #expect(requests.first?.value(forHTTPHeaderField: "x-api-key") == "test-key")
+    }
+
+    @Test
+    func `A server-supplied page cursor is query-encoded`() async throws {
+        let client = makeClient()
+        LLMMockURLProtocol.reset(host: Self.host)
+        LLMMockURLProtocol.setStubs([
+            .init(statusCode: 200, json: #"{"data":[{"id":"a"}],"has_more":true,"last_id":"odd id&x=1"}"#),
+            .init(statusCode: 200, json: #"{"data":[{"id":"b"}],"has_more":false,"last_id":"b"}"#),
+        ], for: Self.host)
+
+        _ = try await client.listModels(apiKey: "test-key")
+
+        let second = try #require(LLMMockURLProtocol.requests(for: Self.host).last?.url)
+        let items = URLComponents(url: second, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        #expect(items.first { $0.name == "after_id" }?.value == "odd id&x=1")
+        #expect(second.absoluteString.contains("after_id=odd%20id%26x%3D1"))
     }
 }

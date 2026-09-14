@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    name: Lint, strict build, host tests
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tooling
+        run: brew bundle
+      - name: Lint and format check
+        run: make check
+      - name: Build with warnings as errors
+        run: make build-strict
+      - name: Host tests
+        run: make test-host
+
+  simulator:
+    name: iOS simulator tests
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Simulator tests
+        # The runner picks the newest installed iOS runtime for the named device.
+        run: xcodebuild test -scheme Sophon-Package -destination 'platform=iOS Simulator,name=iPhone 17' -quiet

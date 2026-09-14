@@ -4,8 +4,9 @@
 //
 //  Networking layer for Gemini `generateContent` calls: request building,
 //  policy-driven retry (backoff, Retry-After, 404 model fallback, image
-//  downscale) via the shared `LLMRetryLoop`, structured/plain-text decoding,
-//  truncated-JSON recovery, and live model listing.
+//  downscale) via the shared `LLMRetryLoop`, structured/plain-text decoding
+//  with brace repair for responses that end early without a truncation
+//  signal, and live model listing.
 //
 
 import Foundation
@@ -16,21 +17,29 @@ public final class GeminiAPIClient: LLMClient {
     public let configuration: GeminiClientConfiguration
     public let modelStore: GeminiModelStore
     private let session: URLSession
+    private let ownsSession: Bool
 
     /// Build a client from a configuration. Pass a custom `session` to add
-    /// debug network logging or, in tests, a `URLProtocol` mock; nil builds one
-    /// from the configuration's timeouts.
+    /// debug network logging or, in tests, a `URLProtocol` mock; nil builds an
+    /// ephemeral one from the configuration's timeouts (no shared URL cache or
+    /// cookie jar, so a cached `GET /models` can never go stale on disk).
     public init(configuration: GeminiClientConfiguration, session: URLSession? = nil) {
         self.configuration = configuration
         modelStore = GeminiModelStore(configuration: configuration)
         if let session {
             self.session = session
+            ownsSession = false
         } else {
-            let sessionConfig = URLSessionConfiguration.default
+            let sessionConfig = URLSessionConfiguration.ephemeral
             sessionConfig.timeoutIntervalForRequest = configuration.requestTimeout
             sessionConfig.timeoutIntervalForResource = configuration.resourceTimeout
             self.session = URLSession(configuration: sessionConfig)
+            ownsSession = true
         }
+    }
+
+    deinit {
+        if ownsSession { session.finishTasksAndInvalidate() }
     }
 
     public var providerDisplayName: String { "Gemini" }
@@ -41,6 +50,11 @@ public final class GeminiAPIClient: LLMClient {
 
     public func loadAPIKey() -> String? {
         configuration.loadAPIKey()
+    }
+
+    /// The stored key, or `apiKeyMissing` / `apiKeyInaccessible` (locked Keychain).
+    private func requireAPIKey() throws -> String {
+        try configuration.requireAPIKey(missing: { GeminiError.apiKeyMissing }, inaccessible: GeminiError.apiKeyInaccessible)
     }
 
     // MARK: - Request Building & Execution
@@ -135,8 +149,11 @@ public final class GeminiAPIClient: LLMClient {
         // embeds the failing URL verbatim, so a query-string key would leak
         // into every transport-error log.
         let resolvedModelID = modelID ?? modelStore.current.modelID
-        let urlString = "\(configuration.apiBaseURL)\(resolvedModelID):generateContent"
-        guard let url = URL(string: urlString) else {
+        // Percent-encode the (possibly user-typed) ID so a stray `?` or `#`
+        // fails the URL guard instead of silently becoming a query or fragment.
+        guard let encodedModelID = resolvedModelID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              !encodedModelID.isEmpty,
+              let url = URL(string: "\(configuration.apiBaseURL)\(encodedModelID):generateContent") else {
             throw GeminiError.invalidModelID(resolvedModelID)
         }
         var request = URLRequest(url: url)
@@ -175,7 +192,7 @@ public final class GeminiAPIClient: LLMClient {
         retryPolicy: GeminiRetryPolicy? = nil,
         buildRequest: (GeminiRequestVariant) async throws -> URLRequest
     ) async throws -> T {
-        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, buildRequest: buildRequest) { data, response in
+        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: true, buildRequest: buildRequest) { data, response in
             try self.decodeResponse(type, data: data, httpResponse: response, label: label)
         }
     }
@@ -186,7 +203,7 @@ public final class GeminiAPIClient: LLMClient {
         retryPolicy: GeminiRetryPolicy? = nil,
         buildRequest: (GeminiRequestVariant) async throws -> URLRequest
     ) async throws -> String {
-        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, buildRequest: buildRequest) { data, response in
+        try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: true, buildRequest: buildRequest) { data, response in
             try self.extractPlainTextResponse(data: data, httpResponse: response)
         }
     }
@@ -195,7 +212,8 @@ public final class GeminiAPIClient: LLMClient {
 
     /// One-call structured generation: prompt (+ optional media parts) in,
     /// decoded result out. Loads the API key itself and encodes the request body
-    /// off-main; downscale-on-retry does not apply since the parts are pre-encoded.
+    /// off-main. The parts are pre-encoded, so an oversized request fails at
+    /// once rather than re-sending the same body.
     public func generateStructured<T: Decodable>(
         _ type: T.Type,
         label: String,
@@ -205,8 +223,8 @@ public final class GeminiAPIClient: LLMClient {
         temperature: Double = 0.1,
         retryPolicy: GeminiRetryPolicy? = nil
     ) async throws -> T {
-        guard let apiKey = loadAPIKey() else { throw GeminiError.apiKeyMissing }
-        return try await send(type, label: label, retryPolicy: retryPolicy) { [self] variant in
+        let apiKey = try requireAPIKey()
+        return try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: false, buildRequest: { [self] variant in
             var request = try makeBaseRequest(apiKey: apiKey, modelID: variant.modelID)
             let body = Self.singleTurnBody(
                 parts: parts,
@@ -217,7 +235,9 @@ public final class GeminiAPIClient: LLMClient {
             )
             request.httpBody = try await Self.encodeBody(body)
             return request
-        }
+        }, decode: { data, response in
+            try self.decodeResponse(type, data: data, httpResponse: response, label: label)
+        })
     }
 
     /// One-call plain-text generation over explicit role-tagged contents
@@ -229,8 +249,8 @@ public final class GeminiAPIClient: LLMClient {
         temperature: Double = 0.3,
         retryPolicy: GeminiRetryPolicy? = nil
     ) async throws -> String {
-        guard let apiKey = loadAPIKey() else { throw GeminiError.apiKeyMissing }
-        return try await sendPlainText(label: label, retryPolicy: retryPolicy) { [self] variant in
+        let apiKey = try requireAPIKey()
+        return try await sendWithRetry(label: label, policy: retryPolicy ?? configuration.retryPolicy, canDownscaleImages: false, buildRequest: { [self] variant in
             var request = try makeBaseRequest(apiKey: apiKey, modelID: variant.modelID)
             let body = Self.multiTurnBody(
                 contents: contents,
@@ -240,12 +260,15 @@ public final class GeminiAPIClient: LLMClient {
             )
             request.httpBody = try await Self.encodeBody(body)
             return request
-        }
+        }, decode: { data, response in
+            try self.extractPlainTextResponse(data: data, httpResponse: response)
+        })
     }
 
     private func sendWithRetry<R>(
         label: String,
         policy: GeminiRetryPolicy,
+        canDownscaleImages: Bool,
         buildRequest: (GeminiRequestVariant) async throws -> URLRequest,
         decode: (Data, HTTPURLResponse) throws -> R
     ) async throws -> R {
@@ -255,6 +278,7 @@ public final class GeminiAPIClient: LLMClient {
             policy: policy,
             initialModelID: modelStore.current.modelID,
             fallbackModelID: configuration.fallbackModel.modelID,
+            canDownscaleImages: canDownscaleImages,
             log: { level, message in self.log(level, message) },
             buildRequest: buildRequest,
             perform: { request in try await self.performRequest(request) },
@@ -262,18 +286,12 @@ public final class GeminiAPIClient: LLMClient {
         )
     }
 
-    /// Parse a numeric `Retry-After` header into a delay clamped to `cap`, or nil if absent/invalid.
-    public static func retryAfterSeconds(from response: HTTPURLResponse, cap: TimeInterval) -> TimeInterval? {
-        LLMHTTP.retryAfterSeconds(from: response, cap: cap)
-    }
-
     // MARK: - Model Listing
 
     /// The generation models the API serves right now (`GET /v1beta/models`,
     /// filtered to `generateContent`). Pages through the listing; no retry.
     public func listModels() async throws -> [LLMRemoteModel] {
-        guard let apiKey = loadAPIKey() else { throw GeminiError.apiKeyMissing }
-        return try await listModels(apiKey: apiKey)
+        try await listModels(apiKey: requireAPIKey())
     }
 
     /// `listModels()` with an explicit key, for callers that hold the key themselves.
@@ -284,7 +302,7 @@ public final class GeminiAPIClient: LLMClient {
         repeat {
             let request = try makeListRequest(apiKey: apiKey, pageToken: pageToken)
             let (data, httpResponse) = try await performRequest(request)
-            try throwForListStatus(httpResponse)
+            try throwForListStatus(httpResponse, data: data)
             let page: GeminiModelListResponse
             do {
                 page = try JSONDecoder().decode(GeminiModelListResponse.self, from: data)
@@ -302,8 +320,8 @@ public final class GeminiAPIClient: LLMClient {
     private static let maxListPages = 10
 
     private func makeListRequest(apiKey: String, pageToken: String?) throws -> URLRequest {
-        var base = configuration.apiBaseURL
-        if base.hasSuffix("/") { base.removeLast() }
+        // The configuration keeps exactly one trailing slash; the collection URL has none.
+        let base = String(configuration.apiBaseURL.dropLast())
         guard var components = URLComponents(string: base) else {
             throw GeminiError.invalidResponse
         }
@@ -317,10 +335,12 @@ public final class GeminiAPIClient: LLMClient {
         return request
     }
 
-    private func throwForListStatus(_ httpResponse: HTTPURLResponse) throws {
+    private func throwForListStatus(_ httpResponse: HTTPURLResponse, data: Data) throws {
         switch httpResponse.statusCode {
         case 200 ... 299:
             return
+        case 400:
+            throw GeminiError.invalidRequest(Self.apiErrorMessage(in: data) ?? "HTTP 400")
         case 401, 403:
             throw GeminiError.invalidAPIKey
         case 429:
@@ -344,15 +364,18 @@ public final class GeminiAPIClient: LLMClient {
             let jsonData = Data(text.utf8)
             return try JSONDecoder().decode(T.self, from: jsonData)
         } catch {
-            // Last-ditch: the JSON may be truncated. Try a conservative brace repair and decode
-            // once more. We only use the repaired form if it decodes cleanly, so this never masks
-            // a genuinely malformed response.
+            // Last-ditch: the model may have stopped mid-object without a
+            // MAX_TOKENS signal (a real truncation is thrown as
+            // `responseTruncated` before reaching here). Try a conservative brace
+            // repair and decode once more; the repaired form is used only if it
+            // decodes cleanly, so this never masks a genuinely malformed response.
             if let repaired = LLMJSONExtractor.repairTruncatedJSON(text), repaired != text,
                let recovered = try? JSONDecoder().decode(T.self, from: Data(repaired.utf8)) {
                 log(.info, "Gemini \(label): recovered truncated JSON via brace repair")
                 return recovered
             }
-            log(.error, "Failed to decode Gemini \(label) | \(LLMJSONExtractor.decodingErrorDetail(error)) | Raw: \(text.prefix(500))")
+            log(.error, "Failed to decode Gemini \(label) | \(LLMJSONExtractor.decodingErrorDetail(error)) | \(text.utf8.count) bytes")
+            log(.debug, "Gemini \(label) raw response: \(text.prefix(500))")
             throw GeminiError.invalidResponse
         }
     }
@@ -379,6 +402,10 @@ public final class GeminiAPIClient: LLMClient {
         switch httpResponse.statusCode {
         case 200 ... 299:
             break
+        case 400:
+            let message = Self.apiErrorMessage(in: data) ?? "HTTP 400"
+            log(.error, "Gemini API rejected the request: \(message)")
+            throw GeminiError.invalidRequest(message)
         case 401, 403:
             log(.error, "Gemini API key invalid (HTTP \(httpResponse.statusCode))")
             throw GeminiError.invalidAPIKey
@@ -387,6 +414,9 @@ public final class GeminiAPIClient: LLMClient {
             modelStore.resetToFallback()
             log(.warning, "Gemini model '\(retired)' returned 404 (retired); reset selection to \(configuration.fallbackModel.modelID)")
             throw GeminiError.modelRetired(retired)
+        case 413:
+            log(.warning, "Gemini API request too large")
+            throw GeminiError.requestTooLarge
         case 429:
             log(.warning, "Gemini API rate limited")
             throw GeminiError.rateLimited
@@ -417,6 +447,11 @@ public final class GeminiAPIClient: LLMClient {
         }
 
         return geminiResponse
+    }
+
+    /// The `error.message` of an error body, if the body is one.
+    private nonisolated static func apiErrorMessage(in data: Data) -> String? {
+        (try? JSONDecoder().decode(GeminiResponse.self, from: data))?.error?.message
     }
 
     // MARK: - Logging

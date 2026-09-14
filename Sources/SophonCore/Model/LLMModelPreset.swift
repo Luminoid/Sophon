@@ -22,6 +22,8 @@ public protocol LLMModelPreset: Equatable, Sendable {
     static var recommendedFallback: Self { get }
     /// How the provider can be used without paying.
     static var freeAccess: LLMProviderFreeAccess { get }
+    /// Where the user gets an API key, for settings hints. Defaults to nil.
+    static var keyHintURL: URL? { get }
     /// A caller-supplied model ID outside the catalog.
     static func custom(_ modelID: String) -> Self
     /// The ID of a `custom` value; nil for presets.
@@ -34,6 +36,8 @@ public protocol LLMModelPreset: Equatable, Sendable {
 }
 
 public extension LLMModelPreset {
+    static var keyHintURL: URL? { nil }
+
     /// The API model identifier used in requests.
     var modelID: String { info.modelID }
     var displayName: String { info.displayName }

@@ -8,6 +8,7 @@
 
 import Foundation
 import SophonGemini
+import SophonTestSupport
 import Testing
 
 struct GeminiModelTests {
@@ -124,14 +125,14 @@ struct GeminiModelTests {
 
     @Test
     func `Store returns configured default when nothing is stored`() {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         #expect(makePrunedStore(defaults: defaults).current == .gemini36Flash)
         #expect(makeFullStore(defaults: defaults).current == .gemini31FlashLite)
     }
 
     @Test
     func `Store keeps a stored model that is in the catalog`() {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         defaults.set("gemini31Pro", forKey: "ai.geminiModel")
         #expect(makePrunedStore(defaults: defaults).current == .gemini31Pro)
     }
@@ -145,7 +146,7 @@ struct GeminiModelTests {
             ("gemini3Flash", .gemini36Flash),
         ]
         for (stored, expected) in cases {
-            let defaults = TestSupport.makeDefaults()
+            let defaults = LLMTestSupport.makeDefaults()
             defaults.set(stored, forKey: "ai.geminiModel")
             #expect(makePrunedStore(defaults: defaults).current == expected)
         }
@@ -153,21 +154,21 @@ struct GeminiModelTests {
 
     @Test
     func `Store keeps legacy models under a full catalog`() {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         defaults.set("gemini25Flash", forKey: "ai.geminiModel")
         #expect(makeFullStore(defaults: defaults).current == .gemini25Flash)
     }
 
     @Test
     func `Store falls back on unknown stored key`() {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         defaults.set("someRetiredKey", forKey: "ai.geminiModel")
         #expect(makePrunedStore(defaults: defaults).current == .gemini35FlashLite)
     }
 
     @Test
     func `Store falls back on blank custom ID`() {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         defaults.set("custom", forKey: "ai.geminiModel")
         defaults.set("   ", forKey: "ai.geminiCustomModel")
         #expect(makePrunedStore(defaults: defaults).current == .gemini35FlashLite)
@@ -175,7 +176,7 @@ struct GeminiModelTests {
 
     @Test
     func `Store passes custom models through regardless of catalog`() {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         defaults.set("custom", forKey: "ai.geminiModel")
         defaults.set("my-model", forKey: "ai.geminiCustomModel")
         #expect(makePrunedStore(defaults: defaults).current == .custom("my-model"))
@@ -183,7 +184,7 @@ struct GeminiModelTests {
 
     @Test
     func `Select persists storage key and custom ID`() {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         let store = makeFullStore(defaults: defaults)
 
         store.select(.gemini35Flash)
@@ -196,7 +197,7 @@ struct GeminiModelTests {
 
     @Test
     func `resetToFallback persists the configured fallback`() {
-        let defaults = TestSupport.makeDefaults()
+        let defaults = LLMTestSupport.makeDefaults()
         defaults.set("gemini35Flash", forKey: "ai.geminiModel")
         let store = makePrunedStore(defaults: defaults)
 

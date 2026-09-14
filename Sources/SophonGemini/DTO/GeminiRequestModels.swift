@@ -3,16 +3,14 @@
 //  SophonGemini
 //
 //  Codable models for the Gemini REST API request body. Messages and parts are
-//  the provider-neutral `LLMMessage` / `LLMPart`; parts already encode in
+//  the provider-neutral `LLMMessage` / `LLMPart` (aliased `GeminiContent` /
+//  `GeminiPart` in `GeminiCompatibility.swift`); parts already encode in
 //  Gemini's `{"text"}` / `{"inlineData"}` shape, and this file maps roles onto
 //  `user` / `model` and lifts system messages into `system_instruction`.
 //
 
 import Foundation
 import SophonCore
-
-public typealias GeminiContent = LLMMessage
-public typealias GeminiPart = LLMPart
 
 public struct GeminiRequest: Encodable, Sendable {
     public let contents: [GeminiContent]

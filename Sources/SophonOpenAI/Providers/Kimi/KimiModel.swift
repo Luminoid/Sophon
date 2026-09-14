@@ -96,8 +96,3 @@ public enum KimiModel: OpenAICompatibleModel {
 
 public typealias KimiClientConfiguration = OpenAICompatibleConfiguration<KimiModel>
 public typealias KimiAPIClient = OpenAICompatibleClient<KimiModel>
-
-public extension OpenAICompatibleConfiguration where Model == KimiModel {
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    var isKimiAvailable: Bool { isAvailable }
-}

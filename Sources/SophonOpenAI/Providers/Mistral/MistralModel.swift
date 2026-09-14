@@ -68,8 +68,3 @@ public enum MistralModel: OpenAICompatibleModel {
 
 public typealias MistralClientConfiguration = OpenAICompatibleConfiguration<MistralModel>
 public typealias MistralAPIClient = OpenAICompatibleClient<MistralModel>
-
-public extension OpenAICompatibleConfiguration where Model == MistralModel {
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    var isMistralAvailable: Bool { isAvailable }
-}

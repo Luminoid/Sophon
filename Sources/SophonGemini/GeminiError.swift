@@ -3,7 +3,8 @@
 //  SophonGemini
 //
 //  Errors surfaced by the Gemini request pipeline, with retry classification.
-//  User-facing copy resolves from the package's string catalog; apps wanting
+//  Gemini-flavored copy resolves from this target's strings; the cases every
+//  provider shares read from `LLMErrorCopy` in SophonCore. Apps wanting
 //  feature-specific wording map cases at their feature layer.
 //
 
@@ -12,15 +13,22 @@ import SophonCore
 
 public enum GeminiError: LLMClientError {
     case apiKeyMissing
+    /// The Keychain refused to hand over the stored key (device locked); carries the OSStatus.
+    case apiKeyInaccessible(OSStatus)
     case invalidAPIKey
     /// The model identifier could not form a valid request URL (carries the offending ID).
     case invalidModelID(String)
+    /// Gemini rejected the request (HTTP 400); carries the API's message.
+    case invalidRequest(String)
     /// The caller had nothing to send (empty text input). Thrown by app services, not the client.
     case emptyInput
     case imageEncodingFailed
     case requestFailed(Error)
     case invalidResponse
     case rateLimited
+    /// HTTP 413: the request body is too large. Retried with smaller images
+    /// when the request builder can re-encode them; fails at once otherwise.
+    case requestTooLarge
     case serverError(Int)
     case modelRetired(String)
     /// Gemini refused the request on safety/recitation grounds (carries the block reason).
@@ -32,20 +40,26 @@ public enum GeminiError: LLMClientError {
         switch self {
         case .apiKeyMissing:
             String(localized: "gemini.error.apiKeyMissing", bundle: .module)
+        case .apiKeyInaccessible:
+            LLMErrorCopy.apiKeyInaccessible.text
         case .invalidAPIKey:
             String(localized: "gemini.error.invalidAPIKey", bundle: .module)
         case let .invalidModelID(id):
             String(localized: "gemini.error.invalidModelID", bundle: .module) + " (\(id))"
+        case let .invalidRequest(message):
+            String(localized: "gemini.error.invalidRequest", bundle: .module) + " (\(message))"
         case .emptyInput:
-            String(localized: "gemini.error.emptyInput", bundle: .module)
+            LLMErrorCopy.emptyInput.text
         case .imageEncodingFailed:
-            String(localized: "gemini.error.imageEncodingFailed", bundle: .module)
+            LLMErrorCopy.imageEncodingFailed.text
         case let .requestFailed(error):
-            String(localized: "gemini.error.networkError", bundle: .module) + " (\(error.localizedDescription))"
+            LLMErrorCopy.networkError.text + " (\(error.localizedDescription))"
         case .invalidResponse:
-            String(localized: "gemini.error.invalidResponse", bundle: .module)
+            LLMErrorCopy.invalidResponse.text
         case .rateLimited:
-            String(localized: "gemini.error.rateLimited", bundle: .module)
+            LLMErrorCopy.rateLimited.text
+        case .requestTooLarge:
+            LLMErrorCopy.requestTooLarge.text
         case let .serverError(code):
             String(localized: "gemini.error.serverError", bundle: .module) + " (\(code))"
         case let .modelRetired(name):
@@ -53,18 +67,19 @@ public enum GeminiError: LLMClientError {
         case .contentBlocked:
             String(localized: "gemini.error.contentBlocked", bundle: .module)
         case .responseTruncated:
-            String(localized: "gemini.error.responseTruncated", bundle: .module)
+            LLMErrorCopy.responseTruncated.text
         }
     }
 
     // MARK: - Retry Classification
 
     /// Whether an automatic backoff retry of the same request is worth attempting.
-    /// Transient HTTP statuses (429, 5xx, 408) and recoverable network failures qualify;
-    /// permanent errors (bad key, blocked content, malformed parse) do not.
+    /// Transient HTTP statuses (429, 5xx, 408), recoverable network failures, and
+    /// an oversized request (re-sent with smaller images) qualify; permanent
+    /// errors (bad key, blocked content, malformed parse) do not.
     public var isRetryable: Bool {
         switch self {
-        case .rateLimited:
+        case .rateLimited, .requestTooLarge:
             true
         case let .serverError(code):
             LLMHTTP.isRetryableServerCode(code)
@@ -83,10 +98,17 @@ public enum GeminiError: LLMClientError {
         return false
     }
 
-    /// Network/transport failures may stem from an oversized image upload, so the retry
-    /// re-encodes the photos smaller. HTTP-level transient errors do not need this.
+    /// Transport failures may stem from an oversized image upload, and a 413
+    /// certainly does, so the retry re-encodes the photos smaller.
     public var shouldCompressImagesOnRetry: Bool {
-        if case .requestFailed = self { return true }
+        switch self {
+        case .requestFailed, .requestTooLarge: true
+        default: false
+        }
+    }
+
+    public var retriesOnlyWithSmallerImages: Bool {
+        if case .requestTooLarge = self { return true }
         return false
     }
 }

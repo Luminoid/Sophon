@@ -91,6 +91,37 @@ struct OpenAIRetryTests {
     }
 
     @Test
+    func `413 retries once with compressed images and never re-sends an identical body`() async throws {
+        LLMMockURLProtocol.reset(host: Self.groqHost)
+        LLMMockURLProtocol.setStubs([.init(statusCode: 413, json: "{}"), .init(statusCode: 200, json: Self.hello)], for: Self.groqHost)
+        let client = makeGroq()
+
+        var compressed: [Bool] = []
+        let result = try await client.sendPlainText(label: "test") { variant in
+            compressed.append(variant.useCompressedImages)
+            return try client.buildRequest(promptText: "hi", apiKey: "k", modelID: variant.modelID)
+        }
+        #expect(result == "hello")
+        #expect(compressed == [false, true])
+
+        LLMMockURLProtocol.reset(host: Self.groqHost)
+        LLMMockURLProtocol.setStubs([.init(statusCode: 413, json: "{}")], for: Self.groqHost)
+        var caught: OpenAIError?
+        do {
+            _ = try await client.sendPlainText(label: "test") { variant in
+                try client.buildRequest(promptText: "hi", apiKey: "k", modelID: variant.modelID)
+            }
+        } catch let error as OpenAIError {
+            caught = error
+        }
+        guard case .requestTooLarge? = caught else {
+            Issue.record("Expected requestTooLarge, got \(String(describing: caught))")
+            return
+        }
+        #expect(LLMMockURLProtocol.requestCount(for: Self.groqHost) == 2)
+    }
+
+    @Test
     func `Model listing decodes ids and OpenRouter filters free ones`() async throws {
         // Listing needs a stored key, so a configuration without one throws before any request.
         let missingKey = makeGroq()

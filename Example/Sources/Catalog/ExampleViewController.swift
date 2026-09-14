@@ -74,7 +74,7 @@ private struct InfoItem {
 private let aboutItems: [InfoItem] = [
     InfoItem("Version", detail: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—", iconName: "tag"),
     InfoItem("GitHub", detail: "Luminoid/Sophon", iconName: "link", isLink: true),
-    InfoItem("Platform", detail: "iOS 18+ · Mac Catalyst 18+ · macOS 15+", iconName: "iphone"),
+    InfoItem("Platform", detail: "iOS 18+ demo · package also supports Mac Catalyst 18+ and macOS 15+ (Foundation)", iconName: "iphone"),
     InfoItem("Swift", detail: "6.2 · Zero dependencies", iconName: "swift"),
     InfoItem("License", detail: "MIT", iconName: "doc.text"),
 ]
@@ -84,7 +84,7 @@ private let aboutItems: [InfoItem] = [
 final class ExampleViewController: UIViewController, UITableViewDataSource, UITableViewDelegate {
     // MARK: - Constants
 
-    private static let githubURL = URL(string: "https://github.com/Luminoid/Sophon")!
+    private static let githubURL = URL(string: "https://github.com/Luminoid/Sophon")
     private static let aboutSectionIndex = exampleSections.count
 
     // MARK: - Properties
@@ -143,6 +143,14 @@ final class ExampleViewController: UIViewController, UITableViewDataSource, UITa
             cell.contentConfiguration = config
             cell.accessoryType = info.isLink ? .disclosureIndicator : .none
             cell.selectionStyle = info.isLink ? .default : .none
+            // Cells are reused, so both branches set the link traits explicitly.
+            if info.isLink {
+                cell.accessibilityTraits.insert(.link)
+                cell.accessibilityHint = "Opens in Safari."
+            } else {
+                cell.accessibilityTraits.remove(.link)
+                cell.accessibilityHint = nil
+            }
             return cell
         }
 
@@ -154,6 +162,8 @@ final class ExampleViewController: UIViewController, UITableViewDataSource, UITa
         cell.contentConfiguration = config
         cell.accessoryType = .disclosureIndicator
         cell.selectionStyle = .default
+        cell.accessibilityTraits.remove(.link)
+        cell.accessibilityHint = nil
         return cell
     }
 
@@ -163,8 +173,8 @@ final class ExampleViewController: UIViewController, UITableViewDataSource, UITa
         tableView.deselectRow(at: indexPath, animated: true)
 
         if indexPath.section == Self.aboutSectionIndex {
-            guard aboutItems[indexPath.row].isLink else { return }
-            UIApplication.shared.open(Self.githubURL)
+            guard aboutItems[indexPath.row].isLink, let url = Self.githubURL else { return }
+            UIApplication.shared.open(url)
             return
         }
 

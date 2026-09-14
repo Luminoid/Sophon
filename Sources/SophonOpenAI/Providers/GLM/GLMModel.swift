@@ -102,8 +102,3 @@ public enum GLMModel: OpenAICompatibleModel {
 
 public typealias GLMClientConfiguration = OpenAICompatibleConfiguration<GLMModel>
 public typealias GLMAPIClient = OpenAICompatibleClient<GLMModel>
-
-public extension OpenAICompatibleConfiguration where Model == GLMModel {
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    var isGLMAvailable: Bool { isAvailable }
-}

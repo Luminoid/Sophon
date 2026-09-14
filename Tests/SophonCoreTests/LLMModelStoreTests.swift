@@ -131,6 +131,26 @@ struct LLMModelStoreTests {
         #expect(Self.makeStore(defaults: defaults).current == .custom("my-model"))
     }
 
+    @Test
+    func `current never returns a preset outside the app's roster`() {
+        // Fallback outside the roster: an unknown key resolves to the first offered preset.
+        let unknown = Self.makeDefaults()
+        unknown.set("nope", forKey: "test.model")
+        #expect(Self.makeStore(defaults: unknown, fallbackModel: .alpha, availableModels: [.beta, .gamma]).current == .beta)
+
+        // Default outside the roster: a fresh install gets the first offered preset.
+        #expect(Self.makeStore(defaults: Self.makeDefaults(), availableModels: [.gamma]).current == .gamma)
+
+        // A pruned model whose chain ends outside the roster lands on an offered preset too.
+        let pruned = Self.makeDefaults()
+        pruned.set("legacy", forKey: "test.model")
+        #expect(Self.makeStore(defaults: pruned, fallbackModel: .alpha, availableModels: [.gamma]).current == .gamma)
+
+        // An empty roster cannot substitute anything and hands back the fallback itself.
+        #expect(Self.makeStore(defaults: unknown, fallbackModel: .alpha, availableModels: []).current == .alpha)
+        #expect(Self.makeStore(defaults: Self.makeDefaults(), availableModels: []).current == .beta)
+    }
+
     // MARK: - Persistence
 
     @Test

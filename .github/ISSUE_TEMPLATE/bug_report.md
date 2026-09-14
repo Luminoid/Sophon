@@ -10,19 +10,20 @@ labels: bug
 <!-- The smallest call site that reproduces it. A failing test in Tests/ is ideal. -->
 
 ```swift
-let result = try await GeminiAPIClient.shared.generateStructured(...)
+let result = try await client.generateStructured(...) // GeminiAPIClient, an OpenAICompatibleClient, or AnthropicAPIClient
 ```
 
 **What did you expect?**
 
 **What happened instead?**
 
-<!-- Thrown GeminiError, decoded value, or compiler error. Redact API keys and personal data. -->
+<!-- Thrown error (GeminiError / OpenAIError / AnthropicError), decoded value, or compiler error. Redact API keys and personal data. -->
 
 **Environment**
 
 - Sophon version (tag or commit):
+- Provider and endpoint (Gemini / OpenAI / Groq / Mistral / OpenRouter / DeepSeek / Qwen / GLM / Kimi / Doubao / Claude / custom `OpenAIEndpoint`; region if any):
+- Model ID:
 - Retry policy in use (`.default` / `.minimal` / custom):
-- Gemini model ID:
 - Xcode version (`xcodebuild -version`):
 - Platform and OS version (iOS / iPadOS / Mac Catalyst / macOS; simulator or device):

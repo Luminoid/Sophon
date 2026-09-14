@@ -27,29 +27,22 @@
             maxDimension: CGFloat = GeminiAPIClient.maxImageDimension,
             quality: CGFloat = GeminiAPIClient.imageCompressionQuality
         ) async throws -> [GeminiPart] {
-            do {
-                return try await LLMImageEncoder.encode(cappedImages(images), maxDimension: maxDimension, quality: quality)
-            } catch is LLMImageEncodingError {
-                throw GeminiError.imageEncodingFailed
-            }
+            try await encodeImages(images, variant: nil, maxDimension: maxDimension, quality: quality)
         }
 
         /// Encode images at the size dictated by the retry variant: full size normally, down-scaled
-        /// after a transport failure triggers a re-encode.
+        /// after a transport failure or a 413 triggers a re-encode.
         func encodeImages(_ images: [UIImage], variant: GeminiRequestVariant) async throws -> [GeminiPart] {
+            try await encodeImages(images, variant: variant, maxDimension: Self.maxImageDimension, quality: Self.imageCompressionQuality)
+        }
+
+        private func encodeImages(_ images: [UIImage], variant: LLMRequestVariant?, maxDimension: CGFloat, quality: CGFloat) async throws -> [LLMPart] {
+            let capped = LLMImageEncoder.capped(images, maxImages: configuration.maxImages, log: log)
             do {
-                return try await LLMImageEncoder.encode(cappedImages(images), variant: variant)
+                return try await LLMImageEncoder.encode(capped, variant: variant, maxDimension: maxDimension, quality: quality)
             } catch is LLMImageEncodingError {
                 throw GeminiError.imageEncodingFailed
             }
-        }
-
-        /// Drops images over `configuration.maxImages` with a warning log
-        /// (Gemini's inline budget is ~20 MB).
-        private func cappedImages(_ images: [UIImage]) -> [UIImage] {
-            guard images.count > configuration.maxImages else { return images }
-            log(.warning, "encodeImages: dropping \(images.count - configuration.maxImages) image(s) over the configured maxImages of \(configuration.maxImages)")
-            return Array(images.prefix(configuration.maxImages))
         }
     }
 #endif

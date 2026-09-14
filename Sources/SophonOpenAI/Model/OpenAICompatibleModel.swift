@@ -15,3 +15,9 @@ public protocol OpenAICompatibleModel: LLMModelPreset {
     /// international region for providers that have a China split).
     static var defaultEndpoint: OpenAIEndpoint { get }
 }
+
+public extension OpenAICompatibleModel {
+    /// The default endpoint's key hint, so every catalog answers
+    /// `keyHintURL` the same way.
+    static var keyHintURL: URL? { defaultEndpoint.keyHintURL }
+}

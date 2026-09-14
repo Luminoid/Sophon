@@ -3,9 +3,9 @@
 //  SophonAnthropic
 //
 //  Errors surfaced by the Messages API request pipeline, with retry
-//  classification. User-facing copy resolves from the package's string
-//  catalog; apps wanting feature-specific wording map cases at their feature
-//  layer.
+//  classification. Claude-flavored copy resolves from this target's strings;
+//  the cases every provider shares read from `LLMErrorCopy` in SophonCore.
+//  Apps wanting feature-specific wording map cases at their feature layer.
 //
 
 import Foundation
@@ -13,6 +13,8 @@ import SophonCore
 
 public enum AnthropicError: LLMClientError {
     case apiKeyMissing
+    /// The Keychain refused to hand over the stored key (device locked); carries the OSStatus.
+    case apiKeyInaccessible(OSStatus)
     case invalidAPIKey
     /// The base URL and path could not form a request URL (carries the offending string).
     case invalidEndpoint(String)
@@ -24,9 +26,12 @@ public enum AnthropicError: LLMClientError {
     case requestFailed(Error)
     case invalidResponse
     case rateLimited
+    /// The account's credit balance is exhausted (a 400 whose message says so). Not retryable.
+    case insufficientQuota
     /// HTTP 529: the API is temporarily overloaded. Retryable.
     case overloaded
-    /// HTTP 413: the request body is too large. Retried once with smaller images.
+    /// HTTP 413: the request body is too large. Retried with smaller images
+    /// when the request builder can re-encode them; fails at once otherwise.
     case requestTooLarge
     case serverError(Int)
     case modelRetired(String)
@@ -39,6 +44,8 @@ public enum AnthropicError: LLMClientError {
         switch self {
         case .apiKeyMissing:
             String(localized: "anthropic.error.apiKeyMissing", bundle: .module)
+        case .apiKeyInaccessible:
+            LLMErrorCopy.apiKeyInaccessible.text
         case .invalidAPIKey:
             String(localized: "anthropic.error.invalidAPIKey", bundle: .module)
         case let .invalidEndpoint(url):
@@ -46,19 +53,21 @@ public enum AnthropicError: LLMClientError {
         case let .invalidRequest(message):
             String(localized: "anthropic.error.invalidRequest", bundle: .module) + " (\(message))"
         case .emptyInput:
-            String(localized: "anthropic.error.emptyInput", bundle: .module)
+            LLMErrorCopy.emptyInput.text
         case .imageEncodingFailed:
-            String(localized: "anthropic.error.imageEncodingFailed", bundle: .module)
+            LLMErrorCopy.imageEncodingFailed.text
         case let .requestFailed(error):
-            String(localized: "anthropic.error.networkError", bundle: .module) + " (\(error.localizedDescription))"
+            LLMErrorCopy.networkError.text + " (\(error.localizedDescription))"
         case .invalidResponse:
-            String(localized: "anthropic.error.invalidResponse", bundle: .module)
+            LLMErrorCopy.invalidResponse.text
         case .rateLimited:
-            String(localized: "anthropic.error.rateLimited", bundle: .module)
+            LLMErrorCopy.rateLimited.text
+        case .insufficientQuota:
+            String(localized: "anthropic.error.insufficientQuota", bundle: .module)
         case .overloaded:
             String(localized: "anthropic.error.overloaded", bundle: .module)
         case .requestTooLarge:
-            String(localized: "anthropic.error.requestTooLarge", bundle: .module)
+            LLMErrorCopy.requestTooLarge.text
         case let .serverError(code):
             String(localized: "anthropic.error.serverError", bundle: .module) + " (\(code))"
         case let .modelRetired(name):
@@ -66,7 +75,7 @@ public enum AnthropicError: LLMClientError {
         case .contentBlocked:
             String(localized: "anthropic.error.contentBlocked", bundle: .module)
         case .responseTruncated:
-            String(localized: "anthropic.error.responseTruncated", bundle: .module)
+            LLMErrorCopy.responseTruncated.text
         }
     }
 
@@ -96,5 +105,10 @@ public enum AnthropicError: LLMClientError {
         case .requestFailed, .requestTooLarge: true
         default: false
         }
+    }
+
+    public var retriesOnlyWithSmallerImages: Bool {
+        if case .requestTooLarge = self { return true }
+        return false
     }
 }

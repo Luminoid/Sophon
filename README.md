@@ -3,6 +3,7 @@
 [![Swift](https://img.shields.io/badge/Swift-6.2-orange.svg)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/platforms-iOS%2018%2B%20%7C%20macOS%2015%2B%20%7C%20Mac%20Catalyst%2018%2B-blue.svg)](Package.swift)
 [![Release](https://img.shields.io/github/v/release/Luminoid/Sophon)](https://github.com/Luminoid/Sophon/releases/latest)
+[![CI](https://github.com/Luminoid/Sophon/actions/workflows/ci.yml/badge.svg)](https://github.com/Luminoid/Sophon/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 LLM client for Swift. Sophon is a Swift Package for iOS 18+, macOS 15+, and Mac Catalyst that talks to Google Gemini, OpenAI and every OpenAI-compatible endpoint (Groq, Mistral, OpenRouter, DeepSeek, Qwen, GLM, Kimi, Doubao), and Anthropic's Claude through one kernel: schema-constrained structured output written once and encoded in each provider's dialect, configurable retry policies, model catalogs that carry lifecycle and free-tier metadata and fall back automatically when a provider retires a model, live model listing, and lenient decoding for the JSON that LLMs actually return. The request/retry/decoding kernel was extracted from three production iOS apps that each carried it as copy-pasted code, and it ships in all three today (see [Used in](#used-in)).
@@ -13,7 +14,7 @@ LLM client for Swift. Sophon is a Swift Package for iOS 18+, macOS 15+, and Mac 
 
 | Product | Depends on | Contents |
 |---------|-----------|----------|
-| `SophonCore` | nothing | `LLMSchema` (one schema, two dialects), `LLMMessage` / `LLMPart`, `LLMRetryPolicy` + `LLMRetryLoop`, `LLMModelPreset` / `LLMModelInfo` / `LLMModelStore` / `LLMCatalogAudit`, `LLMProviderConfiguration` (key + availability helpers), the `LLMClient` protocol, `LLMDecoding` (lenient LLM JSON decoding), `LLMJSONExtractor` (fence stripping, brace extraction, truncation repair), `SophonKeychain`, `SophonLogger`, UIKit-gated `LLMImageEncoder` |
+| `SophonCore` | nothing | `LLMSchema` (one schema, two dialects), `LLMMessage` / `LLMPart`, `LLMRetryPolicy` + `LLMRetryLoop` + `LLMHTTP`, `LLMModelPreset` / `LLMModelInfo` / `LLMModelStore` / `LLMCatalogAudit`, `LLMProviderConfiguration` (key + availability helpers), the `LLMClient` protocol, `LLMErrorCopy` (the error copy every provider shares), `LLMDecoding` (lenient LLM JSON decoding), `LLMJSONExtractor` (fence stripping, brace extraction, truncation repair), `SophonKeychain`, `SophonLogger`, UIKit-gated `LLMImageEncoder` |
 | `SophonGemini` | `SophonCore` | `GeminiAPIClient`, `GeminiClientConfiguration`, `GeminiModel` catalog, `GeminiError`, Gemini request/response DTOs |
 | `SophonOpenAI` | `SophonCore` | `OpenAICompatibleClient` (Responses API and Chat Completions), `OpenAIEndpoint`, `OpenAIError`, catalogs + endpoint presets for OpenAI, Groq, Mistral, OpenRouter, DeepSeek, Qwen, GLM, Kimi, Doubao |
 | `SophonAnthropic` | `SophonCore` | `AnthropicAPIClient`, `AnthropicClientConfiguration`, `AnthropicModel` catalog, `AnthropicError`, Messages API DTOs |
@@ -136,9 +137,9 @@ defaultModel: .recommendedDefault
 fallbackModel: .recommendedFallback
 ```
 
-A stored selection outside the app's roster walks the catalog's `successor` chain (the provider's documented replacements) and only then falls back, so pruning presets never strands a user's stored choice. `.custom(id)` always passes through, and `listModels()` returns what the provider serves right now for pickers that want the live roster (`listFreeModels()` on OpenRouter). `LLMCatalogAudit.violations(in:)` checks a catalog's invariants; every Sophon catalog passes it in tests.
+A stored selection outside the app's roster walks the catalog's `successor` chain (the provider's documented replacements) and only then falls back, so pruning presets never strands a user's stored choice. The roster always wins: a default or fallback outside `availableModels` resolves to the first offered preset, so the client never runs a model the app's own picker can't show. `.custom(id)` always passes through, and `listModels()` returns what the provider serves right now for pickers that want the live roster (`listFreeModels()` on OpenRouter). `LLMCatalogAudit.violations(in:)` checks a catalog's invariants; every Sophon catalog passes it in tests. Every catalog also exposes `keyHintURL`, where the user gets a key.
 
-Recommended defaults today: Gemini 3.8 Flash (fallback 3.5 Flash-Lite), GPT-5.6 Luna (GPT-5.4 mini), Claude Sonnet 5 (Haiku 4.5), Groq gpt-oss-120b, Mistral Small 4, DeepSeek V4.1 Flash, Qwen Flash, GLM-4.7 Flash, Kimi K2.6, Doubao Seed 2.1 Turbo. Where a provider has a permanent free tier, the recommended pair is on it.
+Recommended defaults today: Gemini 3.8 Flash (fallback 3.5 Flash-Lite), GPT-5.6 Luna (GPT-5.4 mini), Claude Sonnet 5 (Haiku 4.5), Groq gpt-oss-120b, Mistral Small 4, OpenRouter Nemotron 3.5 Lightning (free), DeepSeek V4.1 Flash, Qwen Flash, GLM-4.7 Flash, Kimi K2.6, Doubao Seed 2.1 Turbo. Where a provider has a permanent free tier, the recommended default is on it; OpenRouter's fallback is the paid `openrouter/auto` router on purpose, because its free roster rotates and the safety net must not.
 
 ## Free access
 
@@ -167,20 +168,21 @@ Retry behavior is a parameter, not a baked-in default. Set it per app in the con
 | | `.default` | `.minimal` |
 |---|---|---|
 | Attempts | 3 | 3 |
-| Backoff | 0.8s base, 6s cap, deterministic jitter | 1s base, fixed exponential |
-| `Retry-After` header | honored (clamped) | ignored |
+| Backoff | 0.8s base, 6s cap, deterministic jitter | 1s base, 6s cap, no jitter |
+| `Retry-After` header (seconds or HTTP date) | honored (clamped) | ignored |
 | Retired model | retries the call on the fallback model | fails the call |
-| Transport failure (and Claude's 413) | re-encodes images smaller | no re-encode |
+| Transport failure | re-encodes images smaller | no re-encode |
+| Oversized request (HTTP 413) | re-encodes images smaller, once, and only when the request builder can (the `generate*` conveniences take pre-encoded parts, so they fail at once instead of re-sending the same body) | fails the call |
 
 Either way, a retired model persists a reset of the stored selection to `fallbackModel`, so the user's next call succeeds. Gemini treats every 404 as a retired model; the OpenAI-compatible and Claude clients reset only when the error body names the model, so a mistyped base URL never touches the user's selection.
 
 ## Error copy
 
-`GeminiError`, `OpenAIError`, and `AnthropicError` descriptions resolve from each target's string catalog (en, es, zh-Hans, zh-Hant) with app-neutral wording; the OpenAI-compatible copy names the endpoint ("Groq API key not set"). Apps that want feature-specific copy ("Gemini returned a trip we couldn't read") map the cases at their feature layer.
+`GeminiError`, `OpenAIError`, and `AnthropicError` descriptions resolve from localized strings (en, es, zh-Hans, zh-Hant) with app-neutral wording: provider-flavored lines live in each provider target, and the cases every provider shares (parse failure, rate limit, network error, image encoding, empty input, truncation, oversized request, locked Keychain) come from `LLMErrorCopy` in `SophonCore`. The OpenAI-compatible copy names the endpoint ("Groq API key not set"). A key the Keychain refuses to read (device locked) is `apiKeyInaccessible`, not "API key not set"; `configuration.apiKeyStatus()` tells the two apart. Apps that want feature-specific copy ("Gemini returned a trip we couldn't read") map the cases at their feature layer.
 
 ## Example App
 
-The `Example/` directory contains a small catalog app exercising the package end to end: a provider picker (all fourteen endpoints, China regions included), API key and model settings with live model listing, schema-constrained structured output, multi-turn chat, and the offline JSON extractor (no API key needed). It uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate the Xcode project:
+The `Example/` directory contains a small iOS catalog app exercising the package end to end: a provider picker (all fourteen endpoints, China regions included), API key and model settings with catalog metadata and live model listing (OpenRouter lists its free roster), schema-constrained structured output, multi-turn chat, and the offline JSON extractor (no API key needed). It uses [XcodeGen](https://github.com/yonaskolb/XcodeGen) to generate the Xcode project:
 
 ```bash
 cd Example
@@ -194,9 +196,12 @@ open SophonExample.xcodeproj
 brew bundle      # install swiftlint + swiftformat + xcodegen
 make setup-hooks # wire pre-commit lint + format
 make check       # SwiftLint --strict + SwiftFormat --lint
+make build-strict # swift build with warnings as errors (library + tests)
 make test        # xcodebuild, iOS simulator (canonical)
 make test-host   # swift test (fast, Foundation-only surface)
 ```
+
+The same gates run on GitHub Actions for every push and pull request (`.github/workflows/ci.yml`).
 
 ## Used in
 

@@ -89,8 +89,3 @@ public enum DeepSeekModel: OpenAICompatibleModel {
 
 public typealias DeepSeekClientConfiguration = OpenAICompatibleConfiguration<DeepSeekModel>
 public typealias DeepSeekAPIClient = OpenAICompatibleClient<DeepSeekModel>
-
-public extension OpenAICompatibleConfiguration where Model == DeepSeekModel {
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    var isDeepSeekAvailable: Bool { isAvailable }
-}

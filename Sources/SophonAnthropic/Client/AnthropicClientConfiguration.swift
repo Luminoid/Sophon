@@ -4,20 +4,13 @@
 //
 //  Per-app configuration for `AnthropicAPIClient`. Apps construct one of these
 //  (typically as a static extension) and keep a single shared client built
-//  from it; every app-specific string lives here, not in the package.
+//  from it; every app-specific string lives here, not in the package. The
+//  availability and API-key helpers (`isAvailable`, `hasAPIKey`, `saveAPIKey`,
+//  `maskedAPIKeyDisplay`, ...) come from `LLMProviderConfiguration`.
 //
 
 import Foundation
 import SophonCore
-
-/// Reasoning effort sent as `output_config.effort`; nil leaves the model's default.
-public enum AnthropicEffort: String, Sendable {
-    case low
-    case medium
-    case high
-    case xhigh
-    case max
-}
 
 /// UserDefaults is documented thread-safe, hence the @unchecked conformance.
 public struct AnthropicClientConfiguration: @unchecked Sendable, LLMProviderConfiguration {
@@ -29,12 +22,20 @@ public struct AnthropicClientConfiguration: @unchecked Sendable, LLMProviderConf
     /// Model for new installs with no stored selection. Defaults to
     /// `AnthropicModel.recommendedDefault`, so a Sophon update moves it.
     public var defaultModel: AnthropicModel
-    /// Stable safety net when a selected model is retired.
+    /// Stable safety net when a selected model is retired. Expected to be in
+    /// `availableModels`.
     public var fallbackModel: AnthropicModel
-    /// The presets this app offers. Defaults to `AnthropicModel.current`.
+    /// The presets this app offers. Defaults to `AnthropicModel.current`. A
+    /// `defaultModel` or `fallbackModel` outside it resolves to the first
+    /// offered preset.
     public var availableModels: [AnthropicModel]
-    /// Base URL with a trailing slash; `messages` and `models` are appended.
-    public var apiBaseURL: String
+    /// Base URL of the API version; `messages` and `models` are appended.
+    /// Normalized to exactly one trailing slash, so both `.../v1` and
+    /// `.../v1/` work.
+    public var apiBaseURL: String {
+        didSet { apiBaseURL = Self.normalized(baseURL: apiBaseURL) }
+    }
+
     public var apiVersion: String
     /// Required by the Messages API: the output-token ceiling per request.
     public var maxOutputTokens: Int
@@ -76,7 +77,7 @@ public struct AnthropicClientConfiguration: @unchecked Sendable, LLMProviderConf
         self.defaultModel = defaultModel
         self.fallbackModel = fallbackModel
         self.availableModels = availableModels
-        self.apiBaseURL = apiBaseURL
+        self.apiBaseURL = Self.normalized(baseURL: apiBaseURL)
         self.apiVersion = apiVersion
         self.maxOutputTokens = maxOutputTokens
         self.effort = effort
@@ -88,8 +89,8 @@ public struct AnthropicClientConfiguration: @unchecked Sendable, LLMProviderConf
     }
 
     /// The model store this configuration describes.
-    public var modelStore: LLMModelStore<AnthropicModel> {
-        LLMModelStore(
+    public var modelStore: AnthropicModelStore {
+        AnthropicModelStore(
             defaults: defaults,
             modelDefaultsKey: modelDefaultsKey,
             customModelDefaultsKey: customModelDefaultsKey,
@@ -99,10 +100,11 @@ public struct AnthropicClientConfiguration: @unchecked Sendable, LLMProviderConf
         )
     }
 
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    public var isAnthropicAvailable: Bool {
-        isAvailable
+    private static func normalized(baseURL: String) -> String {
+        var base = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        while base.hasSuffix("/") {
+            base.removeLast()
+        }
+        return base + "/"
     }
 }
-
-public typealias AnthropicModelStore = LLMModelStore<AnthropicModel>

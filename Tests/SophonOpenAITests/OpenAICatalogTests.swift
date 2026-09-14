@@ -117,4 +117,19 @@ struct OpenAICatalogTests {
         #expect(overridden.enabledDefaultsKey == "ai.openAIEnabled")
         #expect(overridden.modelDefaultsKey == "custom.model")
     }
+
+    @Test
+    func `Key prefixes are unique per provider and every catalog carries a key hint`() {
+        let endpoints: [OpenAIEndpoint] = [
+            OpenAIModel.defaultEndpoint, GroqModel.defaultEndpoint, MistralModel.defaultEndpoint, OpenRouterModel.defaultEndpoint,
+            DeepSeekModel.defaultEndpoint, QwenModel.defaultEndpoint, GLMModel.defaultEndpoint, KimiModel.defaultEndpoint, DoubaoModel.defaultEndpoint,
+        ]
+        let prefixes = endpoints.map(\.keyPrefix)
+        #expect(Set(prefixes).count == prefixes.count, "a duplicated keyPrefix would share another provider's selection: \(prefixes)")
+        #expect(endpoints.allSatisfy { $0.keyHintURL != nil })
+
+        #expect(OpenAIModel.keyHintURL == OpenAIModel.defaultEndpoint.keyHintURL)
+        #expect(QwenModel.keyHintURL != nil)
+        #expect(DoubaoModel.keyHintURL != nil)
+    }
 }

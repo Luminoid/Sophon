@@ -50,6 +50,11 @@ public struct OpenAIEndpoint: Sendable, Equatable {
     public var displayName: String
     /// Short identifier that derives the default UserDefaults keys
     /// (`ai.<keyPrefix>Enabled` / `Model` / `CustomModel`) and log labels.
+    /// Must be unique per provider. Region variants of one provider share it
+    /// on purpose, so a stored model selection and the enabled toggle survive
+    /// a region switch; their API keys do not, so give each region its own
+    /// `keychainAccount` (the China and international consoles issue
+    /// different keys).
     public var keyPrefix: String
     /// Base URL without a trailing slash, e.g. `https://api.groq.com/openai/v1`.
     public var baseURL: URL

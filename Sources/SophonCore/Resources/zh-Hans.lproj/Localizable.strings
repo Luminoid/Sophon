@@ -1,0 +1,13 @@
+//
+//  Localizable.strings
+//  SophonCore
+//
+
+"llm.error.apiKeyInaccessible" = "无法从钥匙串读取 API 密钥，请解锁设备后重试。";
+"llm.error.emptyInput" = "请先输入文本。";
+"llm.error.imageEncodingFailed" = "图片编码失败。";
+"llm.error.invalidResponse" = "无法解析 AI 响应，请重试。";
+"llm.error.networkError" = "网络错误";
+"llm.error.rateLimited" = "请求过于频繁，请稍后再试。";
+"llm.error.requestTooLarge" = "请求过大，请减少图片数量或缩小图片。";
+"llm.error.responseTruncated" = "回复内容过长未能完成，请重试。";

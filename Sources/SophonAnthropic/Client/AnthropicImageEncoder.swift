@@ -18,27 +18,22 @@
             maxDimension: CGFloat = LLMImageEncoder.maxImageDimension,
             quality: CGFloat = LLMImageEncoder.imageCompressionQuality
         ) async throws -> [LLMPart] {
-            do {
-                return try await LLMImageEncoder.encode(cappedImages(images), maxDimension: maxDimension, quality: quality)
-            } catch is LLMImageEncodingError {
-                throw AnthropicError.imageEncodingFailed
-            }
+            try await encodeImages(images, variant: nil, maxDimension: maxDimension, quality: quality)
         }
 
         /// Encode images at the size dictated by the retry variant: full size normally, down-scaled
-        /// after a transport failure (or a 413) triggers a re-encode.
+        /// after a transport failure or a 413 triggers a re-encode.
         func encodeImages(_ images: [UIImage], variant: LLMRequestVariant) async throws -> [LLMPart] {
+            try await encodeImages(images, variant: variant, maxDimension: LLMImageEncoder.maxImageDimension, quality: LLMImageEncoder.imageCompressionQuality)
+        }
+
+        private func encodeImages(_ images: [UIImage], variant: LLMRequestVariant?, maxDimension: CGFloat, quality: CGFloat) async throws -> [LLMPart] {
+            let capped = LLMImageEncoder.capped(images, maxImages: configuration.maxImages, log: log)
             do {
-                return try await LLMImageEncoder.encode(cappedImages(images), variant: variant)
+                return try await LLMImageEncoder.encode(capped, variant: variant, maxDimension: maxDimension, quality: quality)
             } catch is LLMImageEncodingError {
                 throw AnthropicError.imageEncodingFailed
             }
-        }
-
-        private func cappedImages(_ images: [UIImage]) -> [UIImage] {
-            guard images.count > configuration.maxImages else { return images }
-            log(.warning, "encodeImages: dropping \(images.count - configuration.maxImages) image(s) over the configured maxImages of \(configuration.maxImages)")
-            return Array(images.prefix(configuration.maxImages))
         }
     }
 #endif

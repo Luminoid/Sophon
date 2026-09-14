@@ -35,7 +35,6 @@ public final class LLMMockURLProtocol: URLProtocol {
     private static let lock = NSLock()
     private nonisolated(unsafe) static var stubsByHost: [String: [Stub]] = [:]
     private nonisolated(unsafe) static var requestsByHost: [String: [URLRequest]] = [:]
-
     /// Queue `stubs` for requests to `host`, replacing any earlier queue.
     public static func setStubs(_ stubs: [Stub], for host: String) {
         lock.withLock { stubsByHost[host] = stubs }
@@ -54,8 +53,13 @@ public final class LLMMockURLProtocol: URLProtocol {
         lock.withLock {
             stubsByHost[host] = []
             requestsByHost[host] = []
+            servedCountByHost[host] = 0
         }
     }
+
+    /// Requests served per host since the last reset; drives stub selection
+    /// independently of the capped recording.
+    private nonisolated(unsafe) static var servedCountByHost: [String: Int] = [:]
 
     /// A session that routes every request through the mock.
     public static func makeSession() -> URLSession {
@@ -85,10 +89,19 @@ public final class LLMMockURLProtocol: URLProtocol {
             if recorded.httpBody == nil, let stream = request.httpBodyStream {
                 recorded.httpBody = Self.readAll(stream)
             }
-            Self.requestsByHost[host, default: []].append(recorded)
+            // Keep the last 64 requests per host (bodies included), so a suite
+            // that never resets cannot hold every payload of the run.
+            let recordedRequestCap = 64
+            var recordedRequests = Self.requestsByHost[host] ?? []
+            recordedRequests.append(recorded)
+            if recordedRequests.count > recordedRequestCap {
+                recordedRequests.removeFirst(recordedRequests.count - recordedRequestCap)
+            }
+            Self.requestsByHost[host] = recordedRequests
+            Self.servedCountByHost[host, default: 0] += 1
             let stubs = Self.stubsByHost[host] ?? []
             guard !stubs.isEmpty else { return nil }
-            let index = min((Self.requestsByHost[host]?.count ?? 1) - 1, stubs.count - 1)
+            let index = min((Self.servedCountByHost[host] ?? 1) - 1, stubs.count - 1)
             return stubs[index]
         }
         guard let stub = nextStub else {

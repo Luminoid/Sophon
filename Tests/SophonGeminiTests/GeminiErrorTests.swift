@@ -2,7 +2,8 @@
 //  GeminiErrorTests.swift
 //  SophonGeminiTests
 //
-//  Unit tests for GeminiError retry classification and string-catalog resolution.
+//  Unit tests for GeminiError retry classification and string resolution
+//  (Gemini-flavored keys from this target, shared copy from SophonCore).
 //
 
 import Foundation
@@ -18,9 +19,12 @@ struct GeminiErrorTests {
         #expect(GeminiError.serverError(503).isRetryable)
         #expect(GeminiError.serverError(500).isRetryable)
         #expect(GeminiError.requestFailed(URLError(.timedOut)).isRetryable)
+        #expect(GeminiError.requestTooLarge.isRetryable)
 
         #expect(!GeminiError.serverError(400).isRetryable)
+        #expect(!GeminiError.invalidRequest("bad").isRetryable)
         #expect(!GeminiError.invalidAPIKey.isRetryable)
+        #expect(!GeminiError.apiKeyInaccessible(-25308).isRetryable)
         #expect(!GeminiError.invalidResponse.isRetryable)
         #expect(!GeminiError.contentBlocked("SAFETY").isRetryable)
         #expect(!GeminiError.responseTruncated.isRetryable)
@@ -34,8 +38,11 @@ struct GeminiErrorTests {
     }
 
     @Test
-    func `shouldCompressImagesOnRetry only for transport failures`() {
+    func `Image compression applies to transport failures and oversized requests`() {
         #expect(GeminiError.requestFailed(URLError(.timedOut)).shouldCompressImagesOnRetry)
+        #expect(GeminiError.requestTooLarge.shouldCompressImagesOnRetry)
+        #expect(GeminiError.requestTooLarge.retriesOnlyWithSmallerImages)
+        #expect(!GeminiError.requestFailed(URLError(.timedOut)).retriesOnlyWithSmallerImages)
         #expect(!GeminiError.rateLimited.shouldCompressImagesOnRetry)
         #expect(!GeminiError.serverError(503).shouldCompressImagesOnRetry)
     }
@@ -43,18 +50,19 @@ struct GeminiErrorTests {
     // MARK: - Localization
 
     @Test
-    func `errorDescription resolves from the package string catalog`() throws {
-        // A raw-key description means a missing bundle: .module or catalog entry.
+    func `errorDescription resolves from the package strings`() throws {
+        // A raw-key description means a missing bundle: .module or strings entry.
         let cases: [GeminiError] = [
-            .apiKeyMissing, .invalidAPIKey, .invalidModelID("bad model"), .emptyInput,
-            .imageEncodingFailed, .requestFailed(URLError(.timedOut)), .invalidResponse,
-            .rateLimited, .serverError(500), .modelRetired("gemini-x"),
+            .apiKeyMissing, .apiKeyInaccessible(-25308), .invalidAPIKey, .invalidModelID("bad model"), .invalidRequest("bad"),
+            .emptyInput, .imageEncodingFailed, .requestFailed(URLError(.timedOut)), .invalidResponse,
+            .rateLimited, .requestTooLarge, .serverError(500), .modelRetired("gemini-x"),
             .contentBlocked("SAFETY"), .responseTruncated,
         ]
         for error in cases {
             let description = try #require(error.errorDescription)
             #expect(!description.isEmpty)
             #expect(!description.hasPrefix("gemini.error."))
+            #expect(!description.hasPrefix("llm.error."))
         }
     }
 
@@ -68,5 +76,8 @@ struct GeminiErrorTests {
 
         let invalidID = try #require(GeminiError.invalidModelID("bad model").errorDescription)
         #expect(invalidID.contains("bad model"))
+
+        let invalidRequest = try #require(GeminiError.invalidRequest("Invalid JSON payload").errorDescription)
+        #expect(invalidRequest.contains("Invalid JSON payload"))
     }
 }

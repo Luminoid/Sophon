@@ -175,8 +175,3 @@ public enum OpenAIModel: OpenAICompatibleModel {
 
 public typealias OpenAIClientConfiguration = OpenAICompatibleConfiguration<OpenAIModel>
 public typealias OpenAIAPIClient = OpenAICompatibleClient<OpenAIModel>
-
-public extension OpenAICompatibleConfiguration where Model == OpenAIModel {
-    /// Central availability check: the settings toggle is on AND an API key is stored.
-    var isOpenAIAvailable: Bool { isAvailable }
-}

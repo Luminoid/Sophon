@@ -8,6 +8,7 @@
 
 import Foundation
 import SophonGemini
+import SophonTestSupport
 import Testing
 
 @MainActor
@@ -230,7 +231,7 @@ struct GeminiAPIClientTests {
     }
 
     private func makeHTTPBody(body: String, statusCode: Int) -> (Data, HTTPURLResponse) {
-        (Data(body.utf8), TestSupport.makeHTTPResponse(status: statusCode))
+        (Data(body.utf8), LLMTestSupport.makeHTTPResponse(status: statusCode))
     }
 
     private func bodyJSON(of request: URLRequest) throws -> [String: Any] {

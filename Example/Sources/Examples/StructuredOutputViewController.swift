@@ -40,9 +40,19 @@ final class StructuredOutputViewController: ExamplePageViewController {
 
     private var generateTask: Task<Void, Never>?
 
+    private lazy var providerLabel = makeFootnoteLabel()
     private lazy var inputTextView = makeInputTextView(text: Self.sampleText)
     private lazy var resultTextView = makeResultTextView()
     private lazy var analyzeButton = makeActionButton("Analyze") { [weak self] in self?.analyze() }
+
+    /// Lets Command-Return reach the page before the input view is focused.
+    override var canBecomeFirstResponder: Bool { true }
+
+    override var keyCommands: [UIKeyCommand]? {
+        let analyze = UIKeyCommand(input: "\r", modifierFlags: .command, action: #selector(analyzeFromKeyboard))
+        analyze.discoverabilityTitle = "Analyze"
+        return [analyze]
+    }
 
     // MARK: - Init
 
@@ -54,6 +64,8 @@ final class StructuredOutputViewController: ExamplePageViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        stackView.addArrangedSubview(providerLabel)
 
         addSectionHeader("Input")
         stackView.addArrangedSubview(inputTextView)
@@ -67,16 +79,36 @@ final class StructuredOutputViewController: ExamplePageViewController {
         )
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        let provider = ExampleProviders.selected
+        providerLabel.text = "\(provider.title) · \(provider.client.currentModelID)"
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        becomeFirstResponder()
+    }
+
     // MARK: - Actions
 
     private func analyze() {
-        generateTask?.cancel()
-        analyzeButton.configuration?.showsActivityIndicator = true
-        resultTextView.text = ""
-        let prompt = "Analyze the following text.\n\n" + inputTextView.text
+        let text = (inputTextView.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            resultTextView.text = "Enter some text to analyze."
+            return
+        }
         let provider = ExampleProviders.selected
+        guard provider.configuration.isAvailable else {
+            resultTextView.text = "Enable \(provider.title) in Settings and add an API key."
+            return
+        }
+        generateTask?.cancel()
+        setBusy(true, on: analyzeButton)
+        resultTextView.text = ""
+        let prompt = "Analyze the following text.\n\n" + text
         // A cancelled task must not touch UI afterwards: a newer analyze owns
-        // the result view and spinner by then.
+        // the result view and button by then.
         generateTask = Task { [weak self] in
             do {
                 let analysis = try await provider.client.generateStructured(
@@ -95,12 +127,16 @@ final class StructuredOutputViewController: ExamplePageViewController {
                 keywords: \(analysis.keywords.joined(separator: ", "))
                 summary: \(analysis.summary)
                 """
-                analyzeButton.configuration?.showsActivityIndicator = false
+                setBusy(false, on: analyzeButton)
             } catch {
                 guard let self, !Task.isCancelled else { return }
                 resultTextView.text = "Error: \(error.localizedDescription)"
-                analyzeButton.configuration?.showsActivityIndicator = false
+                setBusy(false, on: analyzeButton)
             }
         }
+    }
+
+    @objc private func analyzeFromKeyboard() {
+        analyze()
     }
 }

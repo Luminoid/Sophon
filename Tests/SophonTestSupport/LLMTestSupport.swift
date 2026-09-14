@@ -10,13 +10,26 @@
 import Foundation
 
 public enum LLMTestSupport {
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var suiteNames: [String] = []
+    private nonisolated(unsafe) static var cleanupRegistered = false
+
     /// A fresh, isolated UserDefaults suite so parallel tests never interfere.
+    /// Every suite created this way is removed from disk when the test process
+    /// exits, so runs don't leave `SophonTests.<UUID>` plists behind.
     public static func makeDefaults() -> UserDefaults {
         let name = "SophonTests." + UUID().uuidString
         guard let defaults = UserDefaults(suiteName: name) else {
             preconditionFailure("Could not create UserDefaults suite \(name)")
         }
         defaults.removePersistentDomain(forName: name)
+        lock.withLock {
+            suiteNames.append(name)
+            if !cleanupRegistered {
+                cleanupRegistered = true
+                atexit { Self.removeAllSuites() }
+            }
+        }
         return defaults
     }
 
@@ -32,5 +45,13 @@ public enum LLMTestSupport {
     public static func jsonObject(_ data: Data?) -> [String: Any]? {
         guard let data else { return nil }
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+    }
+
+    private static func removeAllSuites() {
+        let names = lock.withLock { suiteNames }
+        for name in names {
+            UserDefaults(suiteName: name)?.removePersistentDomain(forName: name)
+            UserDefaults.standard.removeSuite(named: name)
+        }
     }
 }

@@ -120,16 +120,40 @@ struct AnthropicResponseTests {
     }
 
     @Test
-    func `errorDescription resolves from the package string catalog`() throws {
+    func `An exhausted credit balance is insufficientQuota, other 400s stay invalidRequest`() {
+        let client = makeClient()
+        let broke = Data(#"{"type":"error","error":{"type":"invalid_request_error","message":"Your credit balance is too low to access the Anthropic API."}}"#.utf8)
+        guard case .insufficientQuota? = caught({ _ = try client.extractPlainTextResponse(data: broke, httpResponse: LLMTestSupport.makeHTTPResponse(status: 400)) }) else {
+            Issue.record("Expected insufficientQuota")
+            return
+        }
+        #expect(!AnthropicError.insufficientQuota.isRetryable)
+
+        // A 400 that mentions the model is a request problem, never a retired model.
+        let defaults = LLMTestSupport.makeDefaults()
+        defaults.set("claudeOpus5", forKey: "ai.anthropicModel")
+        let modelMention = Data(#"{"type":"error","error":{"type":"invalid_request_error","message":"temperature is not supported by this model"}}"#.utf8)
+        guard case .invalidRequest? = caught({ _ = try makeClient(defaults: defaults).extractPlainTextResponse(data: modelMention, httpResponse: LLMTestSupport.makeHTTPResponse(status: 400)) }) else {
+            Issue.record("Expected invalidRequest")
+            return
+        }
+        #expect(defaults.string(forKey: "ai.anthropicModel") == "claudeOpus5")
+    }
+
+    @Test
+    func `errorDescription resolves from the package strings`() throws {
         let cases: [AnthropicError] = [
-            .apiKeyMissing, .invalidAPIKey, .invalidEndpoint("x"), .invalidRequest("y"), .emptyInput, .imageEncodingFailed,
-            .requestFailed(URLError(.timedOut)), .invalidResponse, .rateLimited, .overloaded, .requestTooLarge,
+            .apiKeyMissing, .apiKeyInaccessible(-25308), .invalidAPIKey, .invalidEndpoint("x"), .invalidRequest("y"), .emptyInput, .imageEncodingFailed,
+            .requestFailed(URLError(.timedOut)), .invalidResponse, .rateLimited, .insufficientQuota, .overloaded, .requestTooLarge,
             .serverError(500), .modelRetired("m"), .contentBlocked("refusal"), .responseTruncated,
         ]
         for error in cases {
             let description = try #require(error.errorDescription)
             #expect(!description.isEmpty)
             #expect(!description.hasPrefix("anthropic.error."))
+            #expect(!description.hasPrefix("llm.error."))
         }
+        #expect(AnthropicError.requestTooLarge.retriesOnlyWithSmallerImages)
+        #expect(!AnthropicError.overloaded.retriesOnlyWithSmallerImages)
     }
 }
