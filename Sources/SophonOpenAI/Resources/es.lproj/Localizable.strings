@@ -1,0 +1,19 @@
+//
+//  Localizable.strings
+//  SophonOpenAI
+//
+
+"openai.error.apiKeyMissing" = "Clave API de %@ no configurada. Agréguela en Ajustes.";
+"openai.error.contentBlocked" = "La IA no pudo procesar este contenido.";
+"openai.error.emptyInput" = "Ingrese texto primero.";
+"openai.error.imageEncodingFailed" = "Error al codificar la imagen.";
+"openai.error.insufficientQuota" = "La cuenta de la API no tiene crédito restante. Revise la facturación con el proveedor.";
+"openai.error.invalidAPIKey" = "Clave API de %@ inválida. Verifique su clave en Ajustes.";
+"openai.error.invalidEndpoint" = "El endpoint de API configurado no es válido.";
+"openai.error.invalidRequest" = "El proveedor rechazó la solicitud.";
+"openai.error.invalidResponse" = "No se pudo analizar la respuesta de la IA. Inténtelo de nuevo.";
+"openai.error.modelRetired" = "El modelo seleccionado ya no está disponible. Restablecido al predeterminado. Inténtelo de nuevo.";
+"openai.error.networkError" = "Error de red";
+"openai.error.rateLimited" = "Demasiadas solicitudes. Espere e intente de nuevo.";
+"openai.error.responseTruncated" = "La respuesta fue demasiado larga para completarse. Inténtelo de nuevo.";
+"openai.error.serverError" = "Error del servidor de IA";

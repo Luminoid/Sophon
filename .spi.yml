@@ -4,6 +4,8 @@ builder:
     - documentation_targets:
         - SophonCore
         - SophonGemini
+        - SophonOpenAI
+        - SophonAnthropic
       platform: ios
       scheme: Sophon-Package
     - platform: macos-xcodebuild

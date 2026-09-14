@@ -1,0 +1,19 @@
+//
+//  Localizable.strings
+//  SophonOpenAI
+//
+
+"openai.error.apiKeyMissing" = "%@ API key not set. Add it in Settings.";
+"openai.error.contentBlocked" = "The AI couldn't process this content.";
+"openai.error.emptyInput" = "Please enter some text first.";
+"openai.error.imageEncodingFailed" = "Failed to encode image.";
+"openai.error.insufficientQuota" = "The API account has no remaining credit. Check billing with the provider.";
+"openai.error.invalidAPIKey" = "Invalid %@ API key. Check your key in Settings.";
+"openai.error.invalidEndpoint" = "The configured API endpoint is invalid.";
+"openai.error.invalidRequest" = "The provider rejected the request.";
+"openai.error.invalidResponse" = "Could not parse the AI response. Please try again.";
+"openai.error.modelRetired" = "The selected model is no longer available. Reset to default. Please try again.";
+"openai.error.networkError" = "Network error";
+"openai.error.rateLimited" = "Too many requests. Please wait and try again.";
+"openai.error.responseTruncated" = "The response was too long to complete. Please try again.";
+"openai.error.serverError" = "AI server error";

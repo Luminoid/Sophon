@@ -22,16 +22,16 @@ private struct ExampleSection {
 }
 
 private let exampleSections: [ExampleSection] = [
-    // Key + model selection first: the Gemini demos need a stored API key.
+    // Provider + key + model selection first: the generation demos need a stored API key.
     ExampleSection(title: "Setup", items: [
         ExampleItem(
             title: "Settings",
-            subtitle: "API key, feature toggle, model selection",
+            subtitle: "Provider, API key, feature toggle, model selection",
             iconName: "gearshape",
             makeViewController: { SettingsViewController() }
         ),
     ]),
-    ExampleSection(title: "Gemini", items: [
+    ExampleSection(title: "Generation", items: [
         ExampleItem(
             title: "Structured Output",
             subtitle: "Schema-constrained JSON with generateStructured",

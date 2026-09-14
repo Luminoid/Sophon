@@ -4,14 +4,15 @@
 //
 //  Networking layer for Gemini `generateContent` calls: request building,
 //  policy-driven retry (backoff, Retry-After, 404 model fallback, image
-//  downscale), structured/plain-text decoding, and truncated-JSON recovery.
+//  downscale) via the shared `LLMRetryLoop`, structured/plain-text decoding,
+//  truncated-JSON recovery, and live model listing.
 //
 
 import Foundation
 import SophonCore
 
 @MainActor
-public final class GeminiAPIClient {
+public final class GeminiAPIClient: LLMClient {
     public let configuration: GeminiClientConfiguration
     public let modelStore: GeminiModelStore
     private let session: URLSession
@@ -31,6 +32,10 @@ public final class GeminiAPIClient {
             self.session = URLSession(configuration: sessionConfig)
         }
     }
+
+    public var providerDisplayName: String { "Gemini" }
+
+    public var currentModelID: String { modelStore.current.modelID }
 
     // MARK: - API Key
 
@@ -244,54 +249,85 @@ public final class GeminiAPIClient {
         buildRequest: (GeminiRequestVariant) async throws -> URLRequest,
         decode: (Data, HTTPURLResponse) throws -> R
     ) async throws -> R {
-        var compressImages = false
-        var modelID = modelStore.current.modelID
-        var triedFallbackModel = false
-        var transientRetries = 0
-
-        while true {
-            var lastResponse: HTTPURLResponse?
-            do {
-                let variant = GeminiRequestVariant(useCompressedImages: compressImages, modelID: modelID)
-                let request = try await buildRequest(variant)
-                let (data, response) = try await performRequest(request)
-                lastResponse = response
-                return try decode(data, response)
-            } catch let error as GeminiError {
-                // 404: the selected model is retired. Retry once against the configured fallback model.
-                if policy.retriesWithFallbackModelOn404, error.isModelRetired, !triedFallbackModel,
-                   configuration.fallbackModel.modelID != modelID {
-                    triedFallbackModel = true
-                    modelID = configuration.fallbackModel.modelID
-                    log(.info, "Gemini \(label): retrying with fallback model \(modelID)")
-                    continue
-                }
-
-                // Transient (429 / 5xx / timeout): exponential backoff, bounded retries.
-                if error.isRetryable, transientRetries < policy.maxRetries {
-                    transientRetries += 1
-                    if policy.downscalesImagesOnRetry, error.shouldCompressImagesOnRetry {
-                        compressImages = true
-                    }
-                    let retryAfter = lastResponse.flatMap { Self.retryAfterSeconds(from: $0, cap: policy.maxDelay) }
-                    let delay = policy.backoffDelay(retry: transientRetries, retryAfter: retryAfter)
-                    log(.info, "Gemini \(label): transient error, retry \(transientRetries)/\(policy.maxRetries) in \(String(format: "%.1f", delay))s")
-                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    continue
-                }
-
-                throw error
-            }
-        }
+        try await LLMRetryLoop.run(
+            providerName: "Gemini",
+            label: label,
+            policy: policy,
+            initialModelID: modelStore.current.modelID,
+            fallbackModelID: configuration.fallbackModel.modelID,
+            log: { level, message in self.log(level, message) },
+            buildRequest: buildRequest,
+            perform: { request in try await self.performRequest(request) },
+            decode: decode
+        )
     }
 
     /// Parse a numeric `Retry-After` header into a delay clamped to `cap`, or nil if absent/invalid.
     public static func retryAfterSeconds(from response: HTTPURLResponse, cap: TimeInterval) -> TimeInterval? {
-        guard let raw = response.value(forHTTPHeaderField: "Retry-After")?.trimmingCharacters(in: .whitespaces),
-              let seconds = TimeInterval(raw), seconds >= 0 else {
-            return nil
+        LLMHTTP.retryAfterSeconds(from: response, cap: cap)
+    }
+
+    // MARK: - Model Listing
+
+    /// The generation models the API serves right now (`GET /v1beta/models`,
+    /// filtered to `generateContent`). Pages through the listing; no retry.
+    public func listModels() async throws -> [LLMRemoteModel] {
+        guard let apiKey = loadAPIKey() else { throw GeminiError.apiKeyMissing }
+        return try await listModels(apiKey: apiKey)
+    }
+
+    /// `listModels()` with an explicit key, for callers that hold the key themselves.
+    public func listModels(apiKey: String) async throws -> [LLMRemoteModel] {
+        var models: [LLMRemoteModel] = []
+        var pageToken: String?
+        var pagesFetched = 0
+        repeat {
+            let request = try makeListRequest(apiKey: apiKey, pageToken: pageToken)
+            let (data, httpResponse) = try await performRequest(request)
+            try throwForListStatus(httpResponse)
+            let page: GeminiModelListResponse
+            do {
+                page = try JSONDecoder().decode(GeminiModelListResponse.self, from: data)
+            } catch {
+                log(.error, "Failed to decode Gemini model list: \(error.localizedDescription)")
+                throw GeminiError.invalidResponse
+            }
+            models += (page.models ?? []).filter(\.isGenerationModel).map(\.remoteModel)
+            pageToken = page.nextPageToken
+            pagesFetched += 1
+        } while pageToken != nil && pagesFetched < Self.maxListPages
+        return models
+    }
+
+    private static let maxListPages = 10
+
+    private func makeListRequest(apiKey: String, pageToken: String?) throws -> URLRequest {
+        var base = configuration.apiBaseURL
+        if base.hasSuffix("/") { base.removeLast() }
+        guard var components = URLComponents(string: base) else {
+            throw GeminiError.invalidResponse
         }
-        return min(seconds, cap)
+        var items = [URLQueryItem(name: "pageSize", value: "200")]
+        if let pageToken { items.append(URLQueryItem(name: "pageToken", value: pageToken)) }
+        components.queryItems = items
+        guard let url = components.url else { throw GeminiError.invalidResponse }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        return request
+    }
+
+    private func throwForListStatus(_ httpResponse: HTTPURLResponse) throws {
+        switch httpResponse.statusCode {
+        case 200 ... 299:
+            return
+        case 401, 403:
+            throw GeminiError.invalidAPIKey
+        case 429:
+            throw GeminiError.rateLimited
+        default:
+            throw GeminiError.serverError(httpResponse.statusCode)
+        }
     }
 
     // MARK: - Response Parsing

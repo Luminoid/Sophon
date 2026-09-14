@@ -2,10 +2,17 @@
 //  GeminiRequestModels.swift
 //  SophonGemini
 //
-//  Codable models for the Gemini REST API request body.
+//  Codable models for the Gemini REST API request body. Messages and parts are
+//  the provider-neutral `LLMMessage` / `LLMPart`; parts already encode in
+//  Gemini's `{"text"}` / `{"inlineData"}` shape, and this file maps roles onto
+//  `user` / `model` and lifts system messages into `system_instruction`.
 //
 
 import Foundation
+import SophonCore
+
+public typealias GeminiContent = LLMMessage
+public typealias GeminiPart = LLMPart
 
 public struct GeminiRequest: Encodable, Sendable {
     public let contents: [GeminiContent]
@@ -15,25 +22,24 @@ public struct GeminiRequest: Encodable, Sendable {
         self.contents = contents
         self.generationConfig = generationConfig
     }
-}
 
-public struct GeminiContent: Encodable, Sendable {
-    public let role: String?
-    public let parts: [GeminiPart]
-
-    public init(parts: [GeminiPart], role: String? = nil) {
-        self.role = role
-        self.parts = parts
-    }
-
+    /// System-role messages are lifted into `system_instruction`; the rest
+    /// become `contents` with Gemini's `user` / `model` role names.
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        if let role { try container.encode(role, forKey: .role) }
-        try container.encode(parts, forKey: .parts)
+        let systemParts = contents.filter { $0.role == .system }.flatMap(\.parts)
+        let turns = contents.filter { $0.role != .system }
+        try container.encode(turns.map { GeminiContentPayload(message: $0) }, forKey: .contents)
+        if !systemParts.isEmpty {
+            try container.encode(GeminiContentPayload(message: LLMMessage(parts: systemParts)), forKey: .systemInstruction)
+        }
+        try container.encode(generationConfig, forKey: .generationConfig)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case role, parts
+        case contents
+        case systemInstruction = "system_instruction"
+        case generationConfig
     }
 }
 
@@ -48,36 +54,40 @@ public struct GeminiGenerationConfig: Encodable, Sendable {
         self.responseSchema = responseSchema
     }
 
-    enum CodingKeys: String, CodingKey {
+    public func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(responseMimeType, forKey: .responseMimeType)
+        try container.encode(temperature, forKey: .temperature)
+        try container.encodeIfPresent(responseSchema?.encoded(as: .openAPI), forKey: .responseSchema)
+    }
+
+    private enum CodingKeys: String, CodingKey {
         case responseMimeType = "response_mime_type"
         case temperature
         case responseSchema = "response_schema"
     }
 }
 
-public enum GeminiPart: Encodable, Sendable {
-    case text(String)
-    /// Base64-encoded media (image, PDF) sent inline. Media parts go before the
-    /// instruction text so the model reads the prompt in the context of the
-    /// already-ingested documents.
-    case inlineData(mimeType: String, data: String)
+/// Gemini wire form of a message: `{"role": "user" | "model", "parts": [...]}`.
+struct GeminiContentPayload: Encodable {
+    let message: LLMMessage
 
-    public func encode(to encoder: any Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch self {
-        case let .text(text):
-            try container.encode(["text": text])
-        case let .inlineData(mimeType, data):
-            try container.encode(InlineDataPayload(inlineData: InlineDataPayload.Content(mimeType: mimeType, data: data)))
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        if let role = message.role {
+            try container.encode(Self.wireRole(role), forKey: .role)
+        }
+        try container.encode(message.parts, forKey: .parts)
+    }
+
+    static func wireRole(_ role: LLMRole) -> String {
+        switch role {
+        case .user, .system: "user"
+        case .assistant: "model"
         }
     }
-}
 
-private struct InlineDataPayload: Encodable {
-    let inlineData: Content
-
-    struct Content: Encodable {
-        let mimeType: String
-        let data: String
+    private enum CodingKeys: String, CodingKey {
+        case role, parts
     }
 }

@@ -1,0 +1,20 @@
+//
+//  Localizable.strings
+//  SophonAnthropic
+//
+
+"anthropic.error.apiKeyMissing" = "Claude API key not set. Add it in Settings.";
+"anthropic.error.contentBlocked" = "Claude declined to process this content.";
+"anthropic.error.emptyInput" = "Please enter some text first.";
+"anthropic.error.imageEncodingFailed" = "Failed to encode image.";
+"anthropic.error.invalidAPIKey" = "Invalid Claude API key. Check your key in Settings.";
+"anthropic.error.invalidEndpoint" = "The configured API endpoint is invalid.";
+"anthropic.error.invalidRequest" = "Claude rejected the request.";
+"anthropic.error.invalidResponse" = "Could not parse the AI response. Please try again.";
+"anthropic.error.modelRetired" = "The selected Claude model is no longer available. Reset to default. Please try again.";
+"anthropic.error.networkError" = "Network error";
+"anthropic.error.overloaded" = "Claude is temporarily overloaded. Please try again in a moment.";
+"anthropic.error.rateLimited" = "Too many requests. Please wait and try again.";
+"anthropic.error.requestTooLarge" = "The request is too large. Try fewer or smaller images.";
+"anthropic.error.responseTruncated" = "The response was too long to complete. Please try again.";
+"anthropic.error.serverError" = "Claude server error";

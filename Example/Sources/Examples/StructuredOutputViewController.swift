@@ -2,11 +2,13 @@
 //  StructuredOutputViewController.swift
 //  SophonExample
 //
-//  One-call structured generation: prompt in, schema-constrained JSON out,
-//  decoded straight into a Swift type.
+//  One-call structured generation through the cross-provider `LLMClient`:
+//  prompt in, schema-constrained JSON out, decoded straight into a Swift type.
+//  The schema is written once; each client encodes it in its provider's
+//  dialect.
 //
 
-import SophonGemini
+import SophonCore
 import UIKit
 
 private struct TextAnalysis: Decodable {
@@ -24,7 +26,7 @@ final class StructuredOutputViewController: ExamplePageViewController {
     frustrating and the cafe ran out of food by noon.
     """
 
-    private static let schema = GeminiSchema.object(
+    private static let schema = LLMSchema.object(
         properties: [
             "sentiment": .string(description: "Overall sentiment of the text", enumValues: ["positive", "mixed", "negative"]),
             "keywords": .array(items: .string(), description: "Three to five key topics"),
@@ -59,7 +61,10 @@ final class StructuredOutputViewController: ExamplePageViewController {
 
         addSectionHeader("Decoded Result")
         stackView.addArrangedSubview(resultTextView)
-        addFootnote("generateStructured sends the schema as responseSchema, retries transient failures per the retry policy, repairs truncated JSON, and decodes into TextAnalysis.")
+        addFootnote(
+            "generateStructured sends the LLMSchema in the provider's dialect (Gemini responseSchema, OpenAI strict json_schema or json_object, Anthropic output_config), "
+                + "retries transient failures per the retry policy, repairs truncated JSON, and decodes into TextAnalysis. Pick the provider in Settings."
+        )
     }
 
     // MARK: - Actions
@@ -69,18 +74,23 @@ final class StructuredOutputViewController: ExamplePageViewController {
         analyzeButton.configuration?.showsActivityIndicator = true
         resultTextView.text = ""
         let prompt = "Analyze the following text.\n\n" + inputTextView.text
+        let provider = ExampleProviders.selected
         // A cancelled task must not touch UI afterwards: a newer analyze owns
         // the result view and spinner by then.
         generateTask = Task { [weak self] in
             do {
-                let analysis = try await GeminiAPIClient.shared.generateStructured(
+                let analysis = try await provider.client.generateStructured(
                     TextAnalysis.self,
                     label: "exampleAnalyze",
                     prompt: prompt,
-                    schema: Self.schema
+                    parts: [],
+                    schema: Self.schema,
+                    temperature: 0.1,
+                    retryPolicy: nil
                 )
                 guard let self, !Task.isCancelled else { return }
                 resultTextView.text = """
+                provider: \(provider.title) (\(provider.client.currentModelID))
                 sentiment: \(analysis.sentiment)
                 keywords: \(analysis.keywords.joined(separator: ", "))
                 summary: \(analysis.summary)

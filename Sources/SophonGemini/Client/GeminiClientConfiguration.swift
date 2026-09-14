@@ -20,12 +20,15 @@ public struct GeminiClientConfiguration: @unchecked Sendable {
     public var modelDefaultsKey: String
     public var customModelDefaultsKey: String
     public var defaults: UserDefaults
-    /// Model for new installs with no stored selection.
+    /// Model for new installs with no stored selection. Defaults to
+    /// `GeminiModel.recommendedDefault`, so a Sophon update moves it.
     public var defaultModel: GeminiModel
-    /// Stable safety net when a selected model is retired. Keep on a current,
-    /// non-deprecated GA model so the safety net itself can't 404.
+    /// Stable safety net when a selected model is retired. Defaults to
+    /// `GeminiModel.recommendedFallback`, a current GA model so the safety net
+    /// itself can't 404.
     public var fallbackModel: GeminiModel
-    /// The presets this app offers. A stored model outside this list resolves
+    /// The presets this app offers. Defaults to `GeminiModel.current` (every
+    /// non-deprecated preset). A stored model outside this list resolves
     /// through `GeminiModel.successor`, then `fallbackModel`.
     public var availableModels: [GeminiModel]
     public var apiBaseURL: String
@@ -45,9 +48,9 @@ public struct GeminiClientConfiguration: @unchecked Sendable {
         modelDefaultsKey: String = "ai.geminiModel",
         customModelDefaultsKey: String = "ai.geminiCustomModel",
         defaults: UserDefaults = .standard,
-        defaultModel: GeminiModel = .gemini31FlashLite,
-        fallbackModel: GeminiModel = .gemini31FlashLite,
-        availableModels: [GeminiModel] = GeminiModel.allStandardCases,
+        defaultModel: GeminiModel = .recommendedDefault,
+        fallbackModel: GeminiModel = .recommendedFallback,
+        availableModels: [GeminiModel] = GeminiModel.current,
         apiBaseURL: String = "https://generativelanguage.googleapis.com/v1beta/models/",
         requestTimeout: TimeInterval = 120,
         resourceTimeout: TimeInterval = 180,

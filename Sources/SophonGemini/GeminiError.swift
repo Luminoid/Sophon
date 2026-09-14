@@ -8,8 +8,9 @@
 //
 
 import Foundation
+import SophonCore
 
-public enum GeminiError: LocalizedError {
+public enum GeminiError: LLMClientError {
     case apiKeyMissing
     case invalidAPIKey
     /// The model identifier could not form a valid request URL (carries the offending ID).
@@ -66,9 +67,9 @@ public enum GeminiError: LocalizedError {
         case .rateLimited:
             true
         case let .serverError(code):
-            Self.retryableServerCodes.contains(code)
+            LLMHTTP.isRetryableServerCode(code)
         case let .requestFailed(error):
-            Self.isRetryableURLError(error)
+            LLMHTTP.isRetryableURLError(error)
         default:
             false
         }
@@ -87,24 +88,5 @@ public enum GeminiError: LocalizedError {
     public var shouldCompressImagesOnRetry: Bool {
         if case .requestFailed = self { return true }
         return false
-    }
-
-    private static let retryableServerCodes: Set<Int> = [408, 425, 429, 500, 502, 503, 504]
-
-    private static let retryableURLErrorCodes: Set<Int> = [
-        NSURLErrorTimedOut,
-        NSURLErrorNetworkConnectionLost,
-        NSURLErrorCannotConnectToHost,
-        NSURLErrorCannotFindHost,
-        NSURLErrorDNSLookupFailed,
-        NSURLErrorNotConnectedToInternet,
-        NSURLErrorResourceUnavailable,
-        NSURLErrorRequestBodyStreamExhausted,
-    ]
-
-    private static func isRetryableURLError(_ error: Error) -> Bool {
-        let nsError = error as NSError
-        guard nsError.domain == NSURLErrorDomain else { return false }
-        return retryableURLErrorCodes.contains(nsError.code)
     }
 }

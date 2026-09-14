@@ -2,17 +2,17 @@
 //  ChatViewController.swift
 //  SophonExample
 //
-//  Multi-turn plain-text conversation: role-tagged GeminiContent history in,
-//  model reply out via generateText.
+//  Multi-turn plain-text conversation through the cross-provider `LLMClient`:
+//  role-tagged LLMMessage history in, model reply out via generateText.
 //
 
-import SophonGemini
+import SophonCore
 import UIKit
 
 final class ChatViewController: ExamplePageViewController {
     // MARK: - Properties
 
-    private var contents: [GeminiContent] = []
+    private var contents: [LLMMessage] = []
     private var sendTask: Task<Void, Never>?
 
     private lazy var transcriptTextView = makeResultTextView()
@@ -50,7 +50,7 @@ final class ChatViewController: ExamplePageViewController {
         buttonRow.spacing = 12
         buttonRow.distribution = .fillEqually
         stackView.addArrangedSubview(buttonRow)
-        addFootnote("Each turn appends a role-tagged GeminiContent (user or model) and resends the whole history, so the model sees the full conversation.")
+        addFootnote("Each turn appends a role-tagged LLMMessage (user or assistant) and resends the whole history, so the model sees the full conversation. Pick the provider in Settings.")
     }
 
     // MARK: - Actions
@@ -61,22 +61,25 @@ final class ChatViewController: ExamplePageViewController {
         sendTask?.cancel()
         sendButton.configuration?.showsActivityIndicator = true
         messageField.text = nil
-        contents.append(GeminiContent(parts: [.text(message)], role: "user"))
+        contents.append(LLMMessage(parts: [.text(message)], role: .user))
         appendTranscript("You: \(message)")
         // Capture the history by value, and hold self weakly across the await so
         // a popped screen deallocates (deinit cancels) instead of riding out the
         // request. A cancelled task must not touch state afterwards: Reset or a
         // newer send owns the transcript and spinner by then.
         let history = contents
+        let provider = ExampleProviders.selected
         sendTask = Task { [weak self] in
             do {
-                let reply = try await GeminiAPIClient.shared.generateText(
+                let reply = try await provider.client.generateText(
                     label: "exampleChat",
-                    contents: history
+                    contents: history,
+                    temperature: 0.3,
+                    retryPolicy: nil
                 )
                 guard let self, !Task.isCancelled else { return }
-                contents.append(GeminiContent(parts: [.text(reply)], role: "model"))
-                appendTranscript("Gemini: \(reply)")
+                contents.append(LLMMessage(parts: [.text(reply)], role: .assistant))
+                appendTranscript("\(provider.title): \(reply)")
                 sendButton.configuration?.showsActivityIndicator = false
             } catch {
                 guard let self, !Task.isCancelled else { return }
